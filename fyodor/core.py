@@ -8,7 +8,6 @@ import glob
 from astropy import units as u
 from astropy.coordinates import SkyCoord, AltAz
 from astropy.time import Time
-# from astropy.utils.data import clear_download_cache
 from astropy.constants import R_earth
 
 __all__ = ['pwv']
@@ -74,6 +73,41 @@ def load_files():
             H, lon_origin, g16_data_file)
 
 
+def geodetic_to_cartesian(lat_origin, lon_proj_rad, lambda_0, r_c, H):
+    s_x = H - r_c * np.cos(lat_origin) * np.cos(lon_proj_rad - lambda_0)
+    s_y = - r_c * np.cos(lat_origin) * np.sin(lon_proj_rad - lambda_0)
+    s_z = r_c * np.sin(lat_origin)
+
+    s = np.sqrt(s_x ** 2 + s_y ** 2 + s_z ** 2)
+
+    x = np.arcsin(-s_y / s)
+    y = np.arctan2(s_z, s_x)
+    return x, y
+
+
+def pwv_integral(LVT, LVM, Pi):
+    # Constants needed and integrand
+    rho_w = 1000  # kg/m**3
+    g = 9.81  # m/s**2
+    C = (-1) / (rho_w * g)
+    ev = 100 * 6.11 * LVM * 10 ** ((7.5 * LVT) / (
+                LVT + 237.15))  # Partial water vapour pressure in Pa
+    q = (0.622 * ev) / (Pi - 0.378 * ev)  # Specific humdity
+    f = 1000 * C * q  # Complete integrand multiplied by 1000 to get the PWV in mm.
+
+    # Numerical integration
+    PWV = np.zeros(len(LVT))
+    for j in range(0, len(LVT)):
+        integral = 0
+        for i in range(1, len(Pi)):
+            integral = integral + (Pi[i] - Pi[i - 1]) * (
+                        (f[j, i] + f[j, i - 1]) / 2)
+        PWV[j] = integral
+
+    PWV = np.nan_to_num(PWV)
+
+    return PWV
+
 def pwv(location, Ra=None, Dec=None, P_minb=300, P_maxb=750,
         line_of_site='zenith'):
     """
@@ -88,17 +122,15 @@ def pwv(location, Ra=None, Dec=None, P_minb=300, P_maxb=750,
 
     """
     params = load_files()
-    times, day, epoch, date, nc_filesT, nc_filesM, h, e, r_pol, r_eq, P, H, lon_origin, g16_data_file = params
+    times, day, epoch, date, nc_filesT, nc_filesM, h, e, r_pol = params[:9]
+    r_eq, P, H, lon_origin, g16_data_file = params[9:]
 
     # Pressure level boundaries
     P_minb = np.abs(P-P_minb).argmin()
     P_maxb = np.abs(P-P_maxb).argmin()
 
     # Convert from radian to degrees:
-    raddeg = 180/np.pi
-
     Ra = float(Ra)
-    # print('\n' 'Declination:')
     Dec = float(Dec)
     Sky = SkyCoord(ra=Ra*u.degree, dec=Dec*u.degree)
     Aa = Sky.transform_to(AltAz(obstime=times,
@@ -106,12 +138,10 @@ def pwv(location, Ra=None, Dec=None, P_minb=300, P_maxb=750,
     latt = Dec
     lont = Ra
 
-    # print('Please wait...')
-
     # Computes PWV along line of sight
     if line_of_site == 'target':
-        INDEX = np.ravel(np.where(Aa.alt.degree<30))
-        INDEXP = np.ravel(np.where(Aa.alt.degree>30))
+        INDEX = np.ravel(np.where(Aa.alt.degree < 30))
+        INDEXP = np.ravel(np.where(Aa.alt.degree > 30))
 
         # Keep time values corresponding to Alt above 30 degrees
         EPOCH = epoch
@@ -134,14 +164,14 @@ def pwv(location, Ra=None, Dec=None, P_minb=300, P_maxb=750,
             delta_xi = []
             for j in h:
                 delta_xt = j/np.tan(Alt[i])
-                delta_xt = delta_xt*u.m**-1
+                delta_xt = delta_xt * u.m**-1
                 delta_xi.append(delta_xt)
             delta_x.append(delta_xi)
         delta_x = np.array(delta_x)
 
         for i in range(0,len(Az)):
-            d_latt = delta_x[i,]*np.cos(Az[i])
-            d_lont = delta_x[i,]*np.sin(Az[i])
+            d_latt = delta_x[i, ] * np.cos(Az[i])
+            d_lont = delta_x[i, ] * np.sin(Az[i])
             d_lat.append(d_latt)
             d_lon.append(d_lont)
         d_lat = np.array(d_lat)
@@ -151,31 +181,24 @@ def pwv(location, Ra=None, Dec=None, P_minb=300, P_maxb=750,
         lat_proj = []
         lon_proj = []
         for i in range(0, len(Alt)):
-            obs_latt = location.latdeg + raddeg*(np.arctan(d_lat[i,]/R_earth*u.m**1)*u.rad**-1)
-            obs_lont = location.londeg + raddeg*(np.arctan(d_lon[i,]/R_earth*u.m**1)*u.rad**-1)
+            obs_latt = (location.latdeg +
+                        np.degrees(np.arctan(d_lat[i, ] * u.m / R_earth)).value)
+            obs_lont = (location.londeg +
+                        np.degrees(np.arctan(d_lon[i, ] * u.m / R_earth)).value)
             lat_proj.append(obs_latt)
             lon_proj.append(obs_lont)
         lat_proj = np.array(lat_proj)
         lon_proj = np.array(lon_proj)
-        rad = (np.pi)/180
 
-        lat_proj_rad = rad*lat_proj
-        lon_proj_rad = rad*lon_proj
-        lambda_0 = rad*lon_origin
+        lat_proj_rad = np.radians(lat_proj)
+        lon_proj_rad = np.radians(lon_proj)
+        lambda_0 = np.radians(lon_origin)
 
-        #T ransform into scan angles
-        lat_origin = np.arctan(((r_pol**2)/(r_eq**2))*np.tan(lat_proj_rad))
+        # Transform into scan angles
+        lat_origin = np.arctan(r_pol**2 / r_eq**2 * np.tan(lat_proj_rad))
+        r_c = r_pol / np.sqrt(1-(e**2)*np.cos(lat_origin)**2)
 
-        r_c = r_pol/(np.sqrt(1-(e**2)*(np.cos(lat_origin))**2))
-
-        s_x = H -r_c*np.cos(lat_origin)*np.cos(lon_proj_rad-lambda_0)
-        s_y = -r_c*np.cos(lat_origin)*np.sin(lon_proj_rad-lambda_0)
-        s_z = r_c*np.sin(lat_origin)
-
-        s = np.sqrt(s_x**2+s_y**2+s_z**2)
-
-        x = np.arcsin(-s_y/s)
-        y = np.arctan(s_z/s_x)
+        x, y = geodetic_to_cartesian(lat_origin, lon_proj_rad, lambda_0, r_c, H)
 
         g16_data_fileT = []
         xscanT = []
@@ -198,9 +221,9 @@ def pwv(location, Ra=None, Dec=None, P_minb=300, P_maxb=750,
             Xi = []
             Yi = []
             for j in range(P_minb, P_maxb+1):
-                Xtemp = np.abs( xtemp-x[i,j]).argmin()
+                Xtemp = np.abs(xtemp-x[i,j]).argmin()
                 Xi.append(Xtemp)
-                Ytemp = np.abs( ytemp-y[i,j]).argmin()
+                Ytemp = np.abs(ytemp-y[i,j]).argmin()
                 Yi.append(Ytemp)
                 LVTtemp = g16.variables['LVT'][Ytemp, Xtemp, j]
                 LVTi.append(LVTtemp)
@@ -246,27 +269,7 @@ def pwv(location, Ra=None, Dec=None, P_minb=300, P_maxb=750,
 
         Pi = P[P_minb:P_maxb+1]
 
-        # Constants needed and integrand
-        rho_w = 1000 # kg/m**3
-        g = 9.81 #m/s**2
-        C = (-1)/(rho_w*g)
-        ev = 100*6.11*LVM*10**((7.5*LVT)/(LVT+237.15)) # Partial water vapour pressure in Pa
-        q = (0.622*ev)/(Pi-0.378*ev) #Specific humdity
-        f = 1000*C*q #Complete integrand multiplied by 1000 to get the PWV in mm.
-
-        # Numerical integration
-        PWV = []
-        for j in range(0, len(LVT)):
-            integral = 0
-            for i in range(1, len(Pi)):
-                integral = integral +(Pi[i]-Pi[i-1])*((f[j,i]+f[j,i-1])/2)
-            PWV.append(integral)
-
-        PWV = np.asarray(PWV)
-
-        print(PWV)
-
-        PWV = np.nan_to_num(PWV)
+        PWV = pwv_integral(LVT, LVM, Pi)
 
         # Plot and save data
         fig = plt.figure(figsize=(8,5))
@@ -289,34 +292,22 @@ def pwv(location, Ra=None, Dec=None, P_minb=300, P_maxb=750,
                 label.set_visible(False)
         plt.tight_layout()
         plt.legend(handles=[RA_patch, Dec_patch], loc='lower right', fontsize=18)
-        plt.show()
-        fig.savefig('PWV_line_of_sight_{}_{}.png'.format(location.site, day[0]))
-
-        np.savetxt('PWV_line_of_sight_{}_{}.csv'.format(location.site, day[0]),
-                   np.column_stack((DATE, PWV)),
-                   delimiter=',', fmt='%s', header='Time, PWV')
+        # fig.savefig('PWV_line_of_sight_{}_{}.png'.format(location.site, day[0]))
+        out_date = DATE
 
     # Computes PWV at zenith
     elif line_of_site == 'zenith':
 
         # Transform latitude and longitude into scan angles
-        rad = (np.pi)/180
-        lambda_0 = rad*lon_origin
-        obs_lat_rad = rad*latt
-        obs_lon_rad = rad*lont
+        lambda_0 = np.radians(lon_origin)
+        obs_lat_rad = np.radians(latt)
+        obs_lon_rad = np.radians(lont)
 
-        lat_origin = np.arctan(((r_pol**2)/(r_eq**2))*np.tan(obs_lat_rad))
+        lat_origin = np.arctan(r_pol**2 / r_eq**2 * np.tan(obs_lat_rad))
 
         r_c = r_pol/(np.sqrt(1-(e**2)*(np.cos(lat_origin))**2))
 
-        s_x = H -r_c*np.cos(lat_origin)*np.cos(obs_lon_rad-lambda_0)
-        s_y = -r_c*np.cos(lat_origin)*np.sin(obs_lon_rad-lambda_0)
-        s_z = r_c*np.sin(lat_origin)
-
-        s = np.sqrt(s_x**2+s_y**2+s_z**2)
-
-        x = np.arcsin(-s_y/s)
-        y = np.arctan(s_z/s_x)
+        x, y = geodetic_to_cartesian(lat_origin, obs_lon_rad, lambda_0, r_c, H)
 
         xscanT = []
         yscanT = []
@@ -380,28 +371,7 @@ def pwv(location, Ra=None, Dec=None, P_minb=300, P_maxb=750,
         P = 100*P
         LVT = LVT-273.15
 
-        # Constants needed and integrand
-        rho_w = 1000 # kg/m**3
-        g = 9.81 #m/s**2
-        C = (-1)/(rho_w*g)
-        ev = 100*6.11*LVM*10**((7.5*LVT)/(LVT+237.15)) # Partial water vapour pressure in Pa
-        #ev = 100*6.094*LVM*np.exp(17.625*LVT/(LVT+243.04))
-        q = (0.622*ev)/(P-0.378*ev) #Specific humdity
-        f = 1000*C*q #Complete integrand multiplied by 1000 to get the PWV in mm.
-
-        # Numerical integration
-        PWV = []
-        for j in range(0, len(nc_filesT)):
-            integral = 0
-            for i in range(P_minb+1, P_maxb+1):
-                integral = integral +(P[i]-P[i-1])*((f[j,i]+f[j,i-1])/2)
-            PWV.append(integral)
-
-        PWV = np.asarray(PWV)
-
-        # print(PWV)
-
-        PWV = np.nan_to_num(PWV)
+        PWV = pwv_integral(LVT, LVM, P)
 
         # Plot and save data
         fig = plt.figure(figsize=(8,5))
@@ -421,9 +391,7 @@ def pwv(location, Ra=None, Dec=None, P_minb=300, P_maxb=750,
             if n % every_nth != 0:
                 label.set_visible(False)
         plt.tight_layout()
-        plt.show()
-        fig.savefig('PWV_at_zenith_{}_{}.png'.format(location.site, day[0]))
 
-        np.savetxt('PWV_at_zenith_{}_{}.csv'.format(location.site, day[0]),
-                   np.column_stack((date, PWV)),
-                   delimiter=',', fmt = '%s', header= 'Time, PWV')
+        out_date = date
+
+    return out_date, PWV
