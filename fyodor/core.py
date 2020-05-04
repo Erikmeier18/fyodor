@@ -14,6 +14,9 @@ __all__ = ['pwv']
 
 
 def load_files():
+    """
+    Load example files
+    """
     # Access working directory
     os.chdir('/Users/bmmorris/Downloads/')
     nc_filesT = glob.glob('*OR_ABI-L2-LVTPF*')
@@ -74,6 +77,22 @@ def load_files():
 
 
 def geodetic_to_cartesian(lat_origin, lon_proj_rad, lambda_0, r_c, H):
+    """
+    Convert geodetic coordinates (lat, lon) to cartesian ones (x, y).
+
+    Parameters
+    ----------
+    lat_origin :
+    lon_proj_rad :
+    lambda_0 :
+    r_c :
+    H :
+
+    Returns
+    -------
+    x, y : tuple of `~numpy.ndarray`
+        Cartesian coordinates.
+    """
     s_x = H - r_c * np.cos(lat_origin) * np.cos(lon_proj_rad - lambda_0)
     s_y = - r_c * np.cos(lat_origin) * np.sin(lon_proj_rad - lambda_0)
     s_z = r_c * np.sin(lat_origin)
@@ -86,6 +105,20 @@ def geodetic_to_cartesian(lat_origin, lon_proj_rad, lambda_0, r_c, H):
 
 
 def pwv_integral(LVT, LVM, Pi):
+    """
+    Integrate to find the precipitable water vapor.
+
+    Parameters
+    ----------
+    LVT :
+    LVM :
+    Pi :
+
+    Returns
+    -------
+    PWV : `~numpy.ndarray`
+        Precipitable water vapor
+    """
     # Constants needed and integrand
     rho_w = 1000  # kg/m**3
     g = 9.81  # m/s**2
@@ -108,26 +141,43 @@ def pwv_integral(LVT, LVM, Pi):
 
     return PWV
 
-def pwv(location, Ra=None, Dec=None, P_minb=300, P_maxb=750,
-        line_of_site='zenith'):
+
+def pwv(location, Ra=None, Dec=None, P_min=300, P_max=750,
+        line_of_site='zenith', plot=False):
     """
+    Compute the precipitable water vapor at ``location`` in direction of
+    ``line_of_site``.
 
-    location :
-    Ra :
-    Dec :
-    P_minb :
-    P_maxb :
-    P :
-    line_of_site :  {"target", "zenith"}
+    Parameters
+    ----------
+    location : `~fyodor.Location`
+        Location of observatory.
+    Ra : float
+        Right ascension of target
+    Dec : float
+        Declination of target
+    P_min : float
+        Minimum pressure (hPa)
+    P_max : float
+        Maximum pressure (hPa)
+    line_of_site :  str, {"target", "zenith"}
+        Either compute line of sight to the target or to the zenith.
+    plot : bool
+        Generate a plot of the PWV at each time.
 
+    Returns
+    -------
+    dates : list
+
+    PWV : `~numpy.ndarray`
     """
     params = load_files()
     times, day, epoch, date, nc_filesT, nc_filesM, h, e, r_pol = params[:9]
     r_eq, P, H, lon_origin, g16_data_file = params[9:]
 
     # Pressure level boundaries
-    P_minb = np.abs(P-P_minb).argmin()
-    P_maxb = np.abs(P-P_maxb).argmin()
+    P_min = np.abs(P - P_min).argmin()
+    P_max = np.abs(P - P_max).argmin()
 
     # Convert from radian to degrees:
     Ra = float(Ra)
@@ -220,7 +270,7 @@ def pwv(location, Ra=None, Dec=None, P_minb=300, P_maxb=750,
             LVTi = []
             Xi = []
             Yi = []
-            for j in range(P_minb, P_maxb+1):
+            for j in range(P_min, P_max + 1):
                 Xtemp = np.abs(xtemp-x[i,j]).argmin()
                 Xi.append(Xtemp)
                 Ytemp = np.abs(ytemp-y[i,j]).argmin()
@@ -252,7 +302,7 @@ def pwv(location, Ra=None, Dec=None, P_minb=300, P_maxb=750,
             LVMi = []
             Xi = []
             Yi = []
-            for j in range(P_minb, P_maxb+1):
+            for j in range(P_min, P_max + 1):
                 XtempM = np.abs( xtempM-x[i,j]).argmin()
                 Xi.append(XtempM)
                 YtempM = np.abs( ytempM-y[i,j]).argmin()
@@ -267,32 +317,32 @@ def pwv(location, Ra=None, Dec=None, P_minb=300, P_maxb=750,
         P = 100*P
         LVT = LVT-273.15
 
-        Pi = P[P_minb:P_maxb+1]
+        Pi = P[P_min:P_max + 1]
 
         PWV = pwv_integral(LVT, LVM, Pi)
 
-        # Plot and save data
-        fig = plt.figure(figsize=(8,5))
-        ax=fig.add_subplot(111)
-        ax.plot(DATE, PWV, 'bo', ms=4)
-        plt.title('Precipitable Water Vapor along line of sight, {} on {}'
-                  .format(location.site, day[0]), fontsize=20)
-        plt.xticks(rotation='vertical', fontsize=16)
-        plt.yticks(fontsize=16)
-        ax.set_xlabel("Date", color="C0", fontsize =18)
-        ax.set_ylabel("PWV (mm)", color="C0", fontsize =18)
-        RA_patch = mpatches.Patch(color='white', label='RA: {} degrees'.format(Ra))
-        Dec_patch = mpatches.Patch(color='white', label='Dec: {} degrees'.format(Dec))
-        every_nth = 4
-        for n, label in enumerate(ax.xaxis.get_ticklabels()):
-            if n % every_nth != 0:
-                label.set_visible(False)
-        for n, label in enumerate(ax.xaxis.get_ticklines()):
-            if n % every_nth != 0:
-                label.set_visible(False)
-        plt.tight_layout()
-        plt.legend(handles=[RA_patch, Dec_patch], loc='lower right', fontsize=18)
-        # fig.savefig('PWV_line_of_sight_{}_{}.png'.format(location.site, day[0]))
+        if plot:
+            # Plot and save data
+            fig = plt.figure(figsize=(8,5))
+            ax=fig.add_subplot(111)
+            ax.plot(DATE, PWV, 'bo', ms=4)
+            plt.title('Precipitable Water Vapor along line of sight, {} on {}'
+                      .format(location.site, day[0]), fontsize=20)
+            plt.xticks(rotation='vertical', fontsize=16)
+            plt.yticks(fontsize=16)
+            ax.set_xlabel("Date", color="C0", fontsize =18)
+            ax.set_ylabel("PWV (mm)", color="C0", fontsize =18)
+            RA_patch = mpatches.Patch(color='white', label='RA: {} degrees'.format(Ra))
+            Dec_patch = mpatches.Patch(color='white', label='Dec: {} degrees'.format(Dec))
+            every_nth = 4
+            for n, label in enumerate(ax.xaxis.get_ticklabels()):
+                if n % every_nth != 0:
+                    label.set_visible(False)
+            for n, label in enumerate(ax.xaxis.get_ticklines()):
+                if n % every_nth != 0:
+                    label.set_visible(False)
+            plt.tight_layout()
+            plt.legend(handles=[RA_patch, Dec_patch], loc='lower right', fontsize=18)
         out_date = DATE
 
     # Computes PWV at zenith
@@ -339,7 +389,6 @@ def pwv(location, Ra=None, Dec=None, P_minb=300, P_maxb=750,
 
         # Retrieve Relative humidity data
         g16_data_fileM = []
-        g16ncM = []
         xscanM = []
         yscanM = []
         LVM = []
@@ -373,24 +422,24 @@ def pwv(location, Ra=None, Dec=None, P_minb=300, P_maxb=750,
 
         PWV = pwv_integral(LVT, LVM, P)
 
-        # Plot and save data
-        fig = plt.figure(figsize=(8,5))
-        ax=fig.add_subplot(111)
-        ax.plot(date, PWV, 'bo', ms=4)
-        plt.title('Precipitable Water Vapor at zenith, {} on {}'
-                  .format(location.site, day[0]), fontsize=20)
-        plt.xticks(rotation='vertical', fontsize=16)
-        plt.yticks(fontsize=16)
-        ax.set_xlabel("Date", color="C0", fontsize =18)
-        ax.set_ylabel("PWV (mm)", color="C0", fontsize =18)
-        every_nth = 4
-        for n, label in enumerate(ax.xaxis.get_ticklabels()):
-            if n % every_nth != 0:
-                label.set_visible(False)
-        for n, label in enumerate(ax.xaxis.get_ticklines()):
-            if n % every_nth != 0:
-                label.set_visible(False)
-        plt.tight_layout()
+        if plot:
+            fig = plt.figure(figsize=(8,5))
+            ax=fig.add_subplot(111)
+            ax.plot(date, PWV, 'bo', ms=4)
+            plt.title('Precipitable Water Vapor at zenith, {} on {}'
+                      .format(location.site, day[0]), fontsize=20)
+            plt.xticks(rotation='vertical', fontsize=16)
+            plt.yticks(fontsize=16)
+            ax.set_xlabel("Date", color="C0", fontsize =18)
+            ax.set_ylabel("PWV (mm)", color="C0", fontsize =18)
+            every_nth = 4
+            for n, label in enumerate(ax.xaxis.get_ticklabels()):
+                if n % every_nth != 0:
+                    label.set_visible(False)
+            for n, label in enumerate(ax.xaxis.get_ticklines()):
+                if n % every_nth != 0:
+                    label.set_visible(False)
+            plt.tight_layout()
 
         out_date = date
 

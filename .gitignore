@@ -1,0 +1,7 @@
+.idea/
+.tox/
+docs/_build/
+docs/api/
+fyodor.egg-info/
+fyodor/__pycache__/
+fyodor/version.py
