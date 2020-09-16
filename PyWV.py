@@ -24,7 +24,7 @@ print('Welcome to PyWV: Precipitable Water Vapor program')
 print('Please read all instructions carefully.')
 
 # Access working directory
-os.chdir('/media/erikmeier/Elements/Data LVTP 12 Nov 2019')
+os.chdir('')
 full_direc = os.listdir()
 nc_filesT = glob.glob('*OR_ABI-L2-LVTPF*') 
 nc_filesT = sorted(nc_filesT)
