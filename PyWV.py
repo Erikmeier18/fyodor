@@ -375,8 +375,8 @@ if resp2 == '1':
     plt.show()
     fig.savefig('PWV_line_of_sight_{}_{}.png'.format(site, day[1]))
     
-    np.savetxt('PWV_line_of_sight_{}_{}.csv'.format(site, day[1]), np.column_stack((DATE, PWV)), 
-               delimiter=',' , fmt = '%s', header= 'Time, PWV')
+    np.savetxt('PWV_line_of_sight_{}_{}.csv'.format(site, day[1]), np.column_stack((DATE,PWV)), 
+               delimiter=',' , fmt = '%s', header= 'Time,PWV', comments='')
     
 # Computes PWV at zenith
 elif resp2 == '2':
@@ -505,5 +505,5 @@ elif resp2 == '2':
     plt.show()
     fig.savefig('PWV_at_zenith_{}_{}.png'.format(site, day[1]))
     
-    np.savetxt('PWV_at_zenith_{}_{}.csv'.format(site, day[1]), np.column_stack((date, PWV)), 
-               delimiter=',' , fmt = '%s', header= 'Time, PWV')
+    np.savetxt('PWV_at_zenith_{}_{}.csv'.format(site, day[1]), np.column_stack((date,PWV)), 
+               delimiter=',' , fmt = '%s', header= 'Time,PWV', comments='')
