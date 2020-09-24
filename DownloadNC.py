@@ -19,8 +19,6 @@ def createFolder(directory):
     except OSError:
         print("Error: Creating directory." + directory)
 
-yesterday = datetime.now()-timedelta(days=1)   
-yesterday = yesterday.strftime('%d %m %Y')
 any_day = "" #Format dd mm yyyy                         
 date = time.strptime(any_day, '%d %m %Y')  
 #Change any_day to yesterday when suited
