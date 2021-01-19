@@ -1,0 +1,814 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>fyodor.core &#8212; fyodor 0.1.dev10+g3e9623e.d20210119 documentation</title>
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
+    <script id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for fyodor.core</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">netCDF4</span> <span class="kn">import</span> <span class="n">Dataset</span>                                             
+<span class="kn">import</span> <span class="nn">os</span>                                                               
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>                                                    
+<span class="kn">import</span> <span class="nn">time</span>                                                             
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>  
+<span class="kn">import</span> <span class="nn">matplotlib.patches</span> <span class="k">as</span> <span class="nn">mpatches</span>
+<span class="kn">import</span> <span class="nn">matplotlib.dates</span> <span class="k">as</span> <span class="nn">mdates</span>
+<span class="kn">import</span> <span class="nn">pylab</span>  
+<span class="kn">import</span> <span class="nn">glob</span>
+<span class="kn">import</span> <span class="nn">astroplan</span>
+<span class="kn">from</span> <span class="nn">astropy</span> <span class="kn">import</span> <span class="n">units</span> <span class="k">as</span> <span class="n">u</span>
+<span class="kn">from</span> <span class="nn">astropy.coordinates</span> <span class="kn">import</span> <span class="n">SkyCoord</span>
+<span class="kn">from</span> <span class="nn">astropy.coordinates</span> <span class="kn">import</span> <span class="n">EarthLocation</span><span class="p">,</span> <span class="n">AltAz</span>
+<span class="kn">from</span> <span class="nn">astropy.time</span> <span class="kn">import</span> <span class="n">Time</span>
+<span class="kn">from</span> <span class="nn">astropy.utils.data</span> <span class="kn">import</span> <span class="n">clear_download_cache</span>
+<span class="kn">from</span> <span class="nn">astroplan</span> <span class="kn">import</span> <span class="n">Observer</span><span class="p">,</span> <span class="n">FixedTarget</span>
+<span class="kn">from</span> <span class="nn">astropy.coordinates</span> <span class="kn">import</span> <span class="n">ICRS</span>
+<span class="kn">from</span> <span class="nn">astropy.constants</span> <span class="kn">import</span> <span class="n">R_earth</span>
+<span class="kn">import</span> <span class="nn">requests</span>
+<span class="kn">from</span> <span class="nn">bs4</span> <span class="kn">import</span> <span class="n">BeautifulSoup</span>
+<span class="kn">import</span> <span class="nn">urllib</span>
+<span class="kn">import</span> <span class="nn">wget</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;renameNC&#39;</span><span class="p">,</span> <span class="s1">&#39;downloadNC&#39;</span><span class="p">,</span> <span class="s1">&#39;tpw&#39;</span><span class="p">,</span> <span class="s1">&#39;pwv&#39;</span><span class="p">]</span>
+
+<span class="n">clear_download_cache</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="renameNC"><a class="viewcode-back" href="../../api/fyodor.renameNC.html#fyodor.renameNC">[docs]</a><span class="k">def</span> <span class="nf">renameNC</span><span class="p">(</span><span class="n">directory</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Rename GOES-R .nc files downloaded via subscription. It removes the order number at the start of the filename. </span>
+<span class="sd">    This must be done so that the pwv function can retrieve measurements in chronological order.</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    Directory : str</span>
+<span class="sd">        Directory path containing the files.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">directory</span><span class="p">))</span>
+    <span class="n">full_direc</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">full_direc</span><span class="p">)):</span>
+        <span class="k">try</span><span class="p">:</span> 
+            <span class="n">tmp</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">full_direc</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">dst</span> <span class="o">=</span> <span class="n">full_direc</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;.&#39;</span> <span class="o">+</span> <span class="n">full_direc</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)[</span><span class="mi">2</span><span class="p">]</span>
+            <span class="n">src</span> <span class="o">=</span> <span class="n">full_direc</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">src</span><span class="p">,</span><span class="n">dst</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">pass</span></div>
+        
+        
+<span class="k">def</span> <span class="nf">createFolder</span><span class="p">(</span><span class="n">directory</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">directory</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">directory</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="n">directory</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Error: Creating directory.&quot;</span> <span class="o">+</span> <span class="n">directory</span><span class="p">)</span> 
+        
+
+<div class="viewcode-block" id="downloadNC"><a class="viewcode-back" href="../../api/fyodor.downloadNC.html#fyodor.downloadNC">[docs]</a><span class="k">def</span> <span class="nf">downloadNC</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">directory</span><span class="p">,</span> <span class="n">date</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Download .nc files from the NOAA webpage after manually requesting the dataset and store them in a new folder </span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    url : str</span>
+<span class="sd">        Website provided by NOAA with the requested files</span>
+<span class="sd">    directory : str</span>
+<span class="sd">        Path where a folder with the files should be created</span>
+<span class="sd">    date: str, Format dd mm yyyy</span>
+<span class="sd">        Day when the measurement took place</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="n">any_day</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">date</span><span class="p">)</span>                         
+    <span class="n">date</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span><span class="n">any_day</span><span class="p">,</span> <span class="s1">&#39;</span><span class="si">%d</span><span class="s1"> %m %Y&#39;</span><span class="p">)</span> 
+
+    <span class="n">createFolder</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">directory</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;/Data PWV </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">any_day</span><span class="p">))</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s1">&#39;/Data PWV </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">any_day</span><span class="p">))</span>
+    
+    <span class="n">url</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">allow_redirects</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">soup</span> <span class="o">=</span> <span class="n">BeautifulSoup</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">content</span><span class="p">,</span> <span class="s1">&#39;html.parser&#39;</span><span class="p">)</span>
+    <span class="n">TableContent</span> <span class="o">=</span> <span class="n">soup</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s1">&#39;table tr a&#39;</span><span class="p">)</span>
+
+    <span class="n">Content</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">TableContent</span><span class="p">)):</span>
+        <span class="n">Contentt</span> <span class="o">=</span> <span class="n">TableContent</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="s1">&#39;href&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">Content</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Contentt</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">date</span><span class="p">[</span><span class="mi">7</span><span class="p">]))</span><span class="o">&lt;</span><span class="mi">3</span><span class="p">:</span>
+        <span class="n">subs</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">date</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span><span class="s1">&#39;0&#39;</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">date</span><span class="p">[</span><span class="mi">7</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">date</span><span class="p">[</span><span class="mi">7</span><span class="p">]))</span><span class="o">==</span><span class="mi">3</span><span class="p">:</span>
+        <span class="n">subs</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">date</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">date</span><span class="p">[</span><span class="mi">7</span><span class="p">])</span> 
+    <span class="n">FileName</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">Content</span> <span class="k">if</span> <span class="n">subs</span> <span class="ow">in</span> <span class="n">i</span><span class="p">]</span>
+
+    <span class="n">urls</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">FileName</span><span class="p">)):</span>
+        <span class="n">urlstemp</span> <span class="o">=</span> <span class="n">url</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">FileName</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> 
+        <span class="n">urls</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">urlstemp</span><span class="p">)</span>
+    
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">urls</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="s1">&#39;./&#39;</span> <span class="o">+</span> <span class="n">FileName</span><span class="p">[</span><span class="n">i</span><span class="p">]):</span>    
+            <span class="n">wget</span><span class="o">.</span><span class="n">download</span><span class="p">(</span><span class="n">urls</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;All files downloaded!&quot;</span><span class="p">)</span></div>
+    
+
+<div class="viewcode-block" id="pwv"><a class="viewcode-back" href="../../api/fyodor.pwv.html#fyodor.pwv">[docs]</a><span class="k">def</span> <span class="nf">pwv</span><span class="p">(</span><span class="n">directory</span><span class="p">,</span> <span class="n">location</span><span class="p">,</span> <span class="n">P_min</span><span class="p">,</span> <span class="n">P_max</span><span class="p">,</span> <span class="n">line_of_sight</span><span class="o">=</span><span class="s1">&#39;zenith&#39;</span><span class="p">,</span> <span class="n">RA</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">Dec</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">plot</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">csv</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the precipitable water vapor (PWV) at ``location`` at zenith or in direction of</span>
+<span class="sd">    ``line_of_sight``.</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    directory : str</span>
+<span class="sd">        Working directory with GOES-R files in it</span>
+<span class="sd">    location : str, {&quot;Cerro Paranal&quot;, &quot;San Pedro Martir&quot;, &quot;Other&quot;} The input &quot;Other&quot; leads to a dialog</span>
+<span class="sd">        window where the user has to enter the latitude and longitude (in degrees) of the location of interest</span>
+<span class="sd">    P_min : float</span>
+<span class="sd">        Lower pressure level (lower altitude). Range between 1100 and 0.05 (hPa)</span>
+<span class="sd">    P_max : float</span>
+<span class="sd">        Upper pressure level (higher altitude). Range between 1100 and 0.05 (hPa)</span>
+<span class="sd">    line_of_sight :  str, {&quot;target&quot;, &quot;zenith&quot;}</span>
+<span class="sd">        Either compute line of sight to the target or to the zenith.</span>
+<span class="sd">    RA : float</span>
+<span class="sd">        Right ascension of target (in degrees)</span>
+<span class="sd">    Dec : float</span>
+<span class="sd">        Declination of target (in degrees)</span>
+<span class="sd">    plot : bool</span>
+<span class="sd">        Generate a plot of the PWV at each time.</span>
+<span class="sd">    csv : bool</span>
+<span class="sd">        Generate a csv file of the PWV at each time. </span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dates : list</span>
+<span class="sd">    PWV : `~numpy.ndarray`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Access working directory</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="n">directory</span><span class="p">)</span>
+    <span class="n">full_direc</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">()</span>
+    <span class="n">nc_filesT</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s1">&#39;*OR_ABI-L2-LVTPF*&#39;</span><span class="p">)</span> 
+    <span class="n">nc_filesT</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">nc_filesT</span><span class="p">)</span>
+    <span class="n">nc_filesM</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s1">&#39;*OR_ABI-L2-LVMPF*&#39;</span><span class="p">)</span>
+    <span class="n">nc_filesM</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">nc_filesM</span><span class="p">)</span> 
+
+    <span class="c1"># Open the first file to retrieve earth parameters</span>
+    <span class="n">Proj_info</span> <span class="o">=</span> <span class="n">Dataset</span><span class="p">(</span><span class="n">nc_filesT</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="s1">&#39;r&#39;</span><span class="p">)</span>
+    <span class="n">proj_info</span> <span class="o">=</span> <span class="n">Proj_info</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;goes_imager_projection&#39;</span><span class="p">]</span>
+    <span class="n">lon_origin</span> <span class="o">=</span> <span class="n">proj_info</span><span class="o">.</span><span class="n">longitude_of_projection_origin</span>
+    <span class="n">H</span> <span class="o">=</span> <span class="n">proj_info</span><span class="o">.</span><span class="n">perspective_point_height</span><span class="o">+</span><span class="n">proj_info</span><span class="o">.</span><span class="n">semi_major_axis</span>
+    <span class="n">r_eq</span> <span class="o">=</span> <span class="n">proj_info</span><span class="o">.</span><span class="n">semi_major_axis</span>
+    <span class="n">r_pol</span> <span class="o">=</span> <span class="n">proj_info</span><span class="o">.</span><span class="n">semi_minor_axis</span>
+
+    <span class="c1"># Retrieve pressure data</span>
+    <span class="n">P</span> <span class="o">=</span> <span class="n">Proj_info</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;pressure&#39;</span><span class="p">][:]</span>
+    <span class="n">Proj_info</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="n">Proj_info</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="c1"># Retrieve time data</span>
+    <span class="n">g16_data_file</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">g16nc</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">epoch</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">date</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">day</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">hour</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">nc_filesT</span><span class="p">)):</span>
+        <span class="n">g16_data</span> <span class="o">=</span> <span class="n">nc_filesT</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">g16_data_file</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">g16_data</span><span class="p">)</span> 
+        <span class="n">g16</span> <span class="o">=</span> <span class="n">Dataset</span><span class="p">(</span><span class="n">g16_data_file</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span>
+        <span class="n">ttemp</span> <span class="o">=</span> <span class="n">g16</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;t&#39;</span><span class="p">][:]</span>
+        <span class="n">t</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ttemp</span><span class="p">)</span>
+        <span class="n">epochtemp</span> <span class="o">=</span> <span class="mi">946728000</span><span class="o">+</span> <span class="nb">int</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+        <span class="n">epoch</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">epochtemp</span><span class="p">)</span>
+        <span class="n">datetemp</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2"> %H:%M:%S&quot;</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">gmtime</span><span class="p">(</span><span class="n">epoch</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+        <span class="n">date</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">datetemp</span><span class="p">)</span>
+        <span class="n">daytemp</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%d</span><span class="s2">-%m-%Y&quot;</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">gmtime</span><span class="p">(</span><span class="n">epoch</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+        <span class="n">day</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">daytemp</span><span class="p">)</span>
+        <span class="n">hourtemp</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%H:%M:%S&quot;</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">gmtime</span><span class="p">(</span><span class="n">epoch</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+        <span class="n">hour</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">hourtemp</span><span class="p">)</span>
+    
+
+    <span class="c1"># Use astropy.time to keep format for target coordinates:</span>
+    <span class="n">times</span> <span class="o">=</span> <span class="n">Time</span><span class="p">(</span><span class="n">date</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;iso&#39;</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="s1">&#39;utc&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Barometric formula</span>
+    <span class="n">p0</span> <span class="o">=</span> <span class="n">P</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="c1">#hPa</span>
+    <span class="n">R_D</span> <span class="o">=</span> <span class="mi">287</span> <span class="c1">#Jkg-1K-1</span>
+    <span class="n">g</span> <span class="o">=</span> <span class="mf">9.81</span> <span class="c1">#m/s2</span>
+    <span class="n">T_s</span> <span class="o">=</span> <span class="mi">288</span> <span class="c1">#K</span>
+    <span class="n">L</span> <span class="o">=</span> <span class="o">-</span><span class="mf">0.0065</span> <span class="c1">#K/m</span>
+
+    <span class="n">h</span> <span class="o">=</span> <span class="p">(</span><span class="n">T_s</span><span class="o">/</span><span class="n">L</span><span class="p">)</span><span class="o">*</span><span class="p">((</span><span class="n">P</span><span class="o">/</span><span class="n">p0</span><span class="p">)</span><span class="o">**</span><span class="p">(</span><span class="o">-</span><span class="n">L</span><span class="o">*</span><span class="n">R_D</span><span class="o">/</span><span class="n">g</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">m</span>
+
+    <span class="n">e</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">r_eq</span><span class="o">**</span><span class="mi">2</span><span class="o">-</span><span class="n">r_pol</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">r_eq</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span> <span class="c1">#Eccentricity</span>
+
+    <span class="c1"># Coordinates input in degrees</span>
+    <span class="c1">#lat = 30.9058267 For San Pedro Mártir</span>
+    <span class="c1">#lon = -115.4254954  For San Pedro Mártir</span>
+    <span class="c1">#lat = -24.6240 For Cerro Paranal</span>
+    <span class="c1">#lon = -70.4025 For Cerro Paranal </span>
+    <span class="k">if</span> <span class="n">location</span> <span class="o">==</span> <span class="s1">&#39;Cerro Paranal&#39;</span><span class="p">:</span>
+        <span class="n">latdeg</span> <span class="o">=</span> <span class="o">-</span><span class="mf">24.6230</span>
+        <span class="n">londeg</span> <span class="o">=</span> <span class="o">-</span><span class="mf">70.4025</span>
+        <span class="n">site</span> <span class="o">=</span> <span class="s1">&#39;Cerro Paranal&#39;</span>
+    <span class="k">elif</span> <span class="n">location</span> <span class="o">==</span> <span class="s1">&#39;San Pedro Martir&#39;</span><span class="p">:</span>
+        <span class="n">latdeg</span> <span class="o">=</span> <span class="mf">30.9058267</span>
+        <span class="n">londeg</span> <span class="o">=</span> <span class="o">-</span><span class="mf">115.4254954</span>
+        <span class="n">site</span> <span class="o">=</span> <span class="s1">&#39;San Pedro Mártir&#39;</span>
+    <span class="k">elif</span> <span class="n">location</span> <span class="o">==</span> <span class="s1">&#39;Arbitrary&#39;</span><span class="p">:</span> 
+        <span class="n">site</span> <span class="o">=</span> <span class="s1">&#39;Lat; </span><span class="si">{}</span><span class="s1"> degrees Lon: </span><span class="si">{}</span><span class="s1"> degrees.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">latdeg</span><span class="p">,</span> <span class="n">londeg</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;First type latitude coordinate, hit Enter, then longitude coordinate and Enter again.&#39;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Latitude valid range: [-81.3282, 81.3283] </span><span class="se">\n</span><span class="s1">&#39;</span>
+              <span class="s1">&#39;Longitude valid range: [-156.2995, 6.2995]&#39;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="s1">&#39;Latitude:&#39;</span><span class="p">)</span>
+        <span class="n">latdeg</span> <span class="o">=</span> <span class="nb">input</span><span class="p">()</span>
+        <span class="k">while</span> <span class="nb">float</span><span class="p">(</span><span class="n">latdeg</span><span class="p">)</span><span class="o">&lt;-</span><span class="mf">81.3281</span> <span class="ow">or</span> <span class="nb">float</span><span class="p">(</span><span class="n">latdeg</span><span class="p">)</span><span class="o">&gt;</span><span class="mf">81.3283</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Invalid latitude range. Enter a value between -81.3282 and 81.3283&#39;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Latitude:&#39;</span><span class="p">)</span>
+            <span class="n">latdeg</span> <span class="o">=</span> <span class="nb">input</span><span class="p">()</span>
+        
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="s1">&#39;Longitude:&#39;</span><span class="p">)</span>
+        <span class="n">londeg</span> <span class="o">=</span> <span class="nb">input</span><span class="p">()</span>
+        <span class="k">while</span> <span class="nb">float</span><span class="p">(</span><span class="n">londeg</span><span class="p">)</span><span class="o">&lt;-</span><span class="mf">156.2995</span> <span class="ow">or</span> <span class="nb">float</span><span class="p">(</span><span class="n">londeg</span><span class="p">)</span><span class="o">&gt;</span><span class="mf">6.2995</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Invalid longitude range. Enter a value between -156.2995 and 6.2995&#39;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Longitude:&#39;</span><span class="p">)</span>
+            <span class="n">londeg</span> <span class="o">=</span> <span class="nb">input</span><span class="p">()</span>
+        
+    <span class="n">latdeg</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">latdeg</span><span class="p">)</span>
+    <span class="n">londeg</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">londeg</span><span class="p">)</span>
+
+    <span class="c1"># Pressure level boundaries</span>
+    <span class="n">P_minb</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">P</span><span class="o">-</span><span class="n">P_min</span><span class="p">)</span><span class="o">.</span><span class="n">argmin</span><span class="p">()</span>
+    <span class="n">P_maxb</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">P</span><span class="o">-</span><span class="n">P_max</span><span class="p">)</span><span class="o">.</span><span class="n">argmin</span><span class="p">()</span>
+
+    <span class="n">loc</span> <span class="o">=</span> <span class="n">EarthLocation</span><span class="p">(</span><span class="n">lat</span><span class="o">=</span><span class="n">latdeg</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="p">,</span> <span class="n">lon</span><span class="o">=</span><span class="n">londeg</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="p">)</span>
+    <span class="n">obs</span> <span class="o">=</span> <span class="n">Observer</span><span class="p">(</span><span class="n">location</span><span class="o">=</span><span class="n">loc</span><span class="p">)</span>
+
+    <span class="c1"># Convert from degrees to radian:</span>
+    <span class="n">degrad</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">180</span> 
+
+    <span class="c1"># Convert from radian to degrees:</span>
+    <span class="n">raddeg</span> <span class="o">=</span> <span class="mi">180</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span>
+
+    <span class="c1"># Earth&#39;s radius (m):</span>
+    <span class="n">R</span> <span class="o">=</span> <span class="mi">6371</span><span class="o">*</span><span class="mi">1000</span>  
+
+    <span class="n">latO</span> <span class="o">=</span> <span class="n">degrad</span><span class="o">*</span><span class="n">latdeg</span>
+    <span class="n">lonO</span> <span class="o">=</span> <span class="n">degrad</span><span class="o">*</span><span class="n">londeg</span>
+
+    <span class="k">if</span> <span class="n">line_of_sight</span> <span class="o">==</span> <span class="s1">&#39;zenith&#39;</span><span class="p">:</span>
+        <span class="n">latt</span> <span class="o">=</span> <span class="n">latdeg</span>
+        <span class="n">lont</span> <span class="o">=</span> <span class="n">londeg</span>
+    <span class="k">elif</span> <span class="n">line_of_sight</span> <span class="o">==</span> <span class="s1">&#39;target&#39;</span><span class="p">:</span>
+        <span class="n">RA</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">RA</span><span class="p">)</span>
+        <span class="n">Dec</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">Dec</span><span class="p">)</span>
+        <span class="n">Sky</span> <span class="o">=</span> <span class="n">SkyCoord</span><span class="p">(</span><span class="n">ra</span><span class="o">=</span><span class="n">RA</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="p">,</span> <span class="n">dec</span><span class="o">=</span><span class="n">Dec</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="p">)</span>
+        <span class="n">Aa</span> <span class="o">=</span> <span class="n">Sky</span><span class="o">.</span><span class="n">transform_to</span><span class="p">(</span><span class="n">AltAz</span><span class="p">(</span><span class="n">obstime</span><span class="o">=</span><span class="n">times</span><span class="p">,</span> <span class="n">location</span><span class="o">=</span><span class="n">loc</span><span class="p">))</span>
+        <span class="n">latt</span> <span class="o">=</span> <span class="n">Dec</span>
+        <span class="n">lont</span> <span class="o">=</span> <span class="n">RA</span>
+
+    <span class="c1"># Computes PWV along line of sight</span>
+    <span class="k">if</span> <span class="n">line_of_sight</span> <span class="o">==</span> <span class="s1">&#39;target&#39;</span><span class="p">:</span>
+        <span class="n">INDEX</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">Aa</span><span class="o">.</span><span class="n">alt</span><span class="o">.</span><span class="n">degree</span><span class="o">&lt;</span><span class="mi">30</span><span class="p">))</span>
+        <span class="n">INDEXP</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">Aa</span><span class="o">.</span><span class="n">alt</span><span class="o">.</span><span class="n">degree</span><span class="o">&gt;</span><span class="mi">30</span><span class="p">))</span>
+    
+        <span class="c1"># Keep time values corresponding to Alt above 30 degrees</span>
+        <span class="n">EPOCH</span> <span class="o">=</span> <span class="n">epoch</span>
+        <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">INDEX</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+            <span class="k">del</span> <span class="n">EPOCH</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+        <span class="n">HOUR</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">epoch</span><span class="p">)):</span>
+            <span class="n">HOURt</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%H:%M:%S&quot;</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">gmtime</span><span class="p">(</span><span class="n">EPOCH</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+            <span class="n">HOUR</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">HOURt</span><span class="p">)</span>
+        <span class="n">DATE</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">epoch</span><span class="p">)):</span>
+            <span class="n">DATEt</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2"> %H:%M:%S&quot;</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">gmtime</span><span class="p">(</span><span class="n">EPOCH</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+            <span class="n">DATE</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">DATEt</span><span class="p">)</span>
+   
+        <span class="n">Alt</span> <span class="o">=</span> <span class="n">Aa</span><span class="o">.</span><span class="n">alt</span><span class="o">.</span><span class="n">rad</span>
+        <span class="n">Az</span> <span class="o">=</span> <span class="n">Aa</span><span class="o">.</span><span class="n">az</span><span class="o">.</span><span class="n">rad</span>
+    
+        <span class="c1"># Compute distance from location to projection point</span>
+        <span class="n">delta_x</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">d_lat</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">d_lon</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">Alt</span><span class="p">)):</span>
+            <span class="n">delta_xi</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">h</span><span class="p">:</span>
+                <span class="n">delta_xt</span> <span class="o">=</span> <span class="n">j</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">tan</span><span class="p">(</span><span class="n">Alt</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+                <span class="n">delta_xt</span> <span class="o">=</span> <span class="n">delta_xt</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">m</span><span class="o">**-</span><span class="mi">1</span>
+                <span class="n">delta_xi</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">delta_xt</span><span class="p">)</span>
+            <span class="n">delta_x</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">delta_xi</span><span class="p">)</span>
+        <span class="n">delta_x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">delta_x</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">Az</span><span class="p">)):</span>
+            <span class="n">d_latt</span> <span class="o">=</span> <span class="n">delta_x</span><span class="p">[</span><span class="n">i</span><span class="p">,]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">Az</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+            <span class="n">d_lont</span> <span class="o">=</span> <span class="n">delta_x</span><span class="p">[</span><span class="n">i</span><span class="p">,]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">Az</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+            <span class="n">d_lat</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">d_latt</span><span class="p">)</span>
+            <span class="n">d_lon</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">d_lont</span><span class="p">)</span>
+        <span class="n">d_lat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">d_lat</span><span class="p">)</span>
+        <span class="n">d_lon</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">d_lon</span><span class="p">)</span>
+
+        <span class="c1"># Compute latitude and longitude of projection points</span>
+        <span class="n">lat_proj</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">lon_proj</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">Alt</span><span class="p">)):</span>
+            <span class="n">obs_latt</span> <span class="o">=</span> <span class="n">loc</span><span class="o">.</span><span class="n">lat</span><span class="o">.</span><span class="n">degree</span> <span class="o">+</span> <span class="n">raddeg</span><span class="o">*</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arctan</span><span class="p">(</span><span class="n">d_lat</span><span class="p">[</span><span class="n">i</span><span class="p">,]</span><span class="o">/</span><span class="n">R_earth</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">m</span><span class="o">**</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">rad</span><span class="o">**-</span><span class="mi">1</span><span class="p">)</span> 
+            <span class="n">obs_lont</span> <span class="o">=</span> <span class="n">loc</span><span class="o">.</span><span class="n">lon</span><span class="o">.</span><span class="n">degree</span> <span class="o">+</span> <span class="n">raddeg</span><span class="o">*</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arctan</span><span class="p">(</span><span class="n">d_lon</span><span class="p">[</span><span class="n">i</span><span class="p">,]</span><span class="o">/</span><span class="n">R_earth</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">m</span><span class="o">**</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">rad</span><span class="o">**-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">lat_proj</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">obs_latt</span><span class="p">)</span>
+            <span class="n">lon_proj</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">obs_lont</span><span class="p">)</span>
+        <span class="n">lat_proj</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">lat_proj</span><span class="p">)</span>
+        <span class="n">lon_proj</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">lon_proj</span><span class="p">)</span>
+        <span class="n">rad</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span><span class="o">/</span><span class="mi">180</span>
+
+        <span class="n">lat_proj_rad</span> <span class="o">=</span> <span class="n">rad</span><span class="o">*</span><span class="n">lat_proj</span>
+        <span class="n">lon_proj_rad</span> <span class="o">=</span> <span class="n">rad</span><span class="o">*</span><span class="n">lon_proj</span>
+        <span class="n">lambda_0</span> <span class="o">=</span> <span class="n">rad</span><span class="o">*</span><span class="n">lon_origin</span>
+    
+        <span class="c1">#T ransform into scan angles</span>
+        <span class="n">lat_origin</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan</span><span class="p">(((</span><span class="n">r_pol</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">r_eq</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">tan</span><span class="p">(</span><span class="n">lat_proj_rad</span><span class="p">))</span>
+    
+        <span class="n">r_c</span> <span class="o">=</span> <span class="n">r_pol</span><span class="o">/</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="p">(</span><span class="n">e</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat_origin</span><span class="p">))</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+
+        <span class="n">s_x</span> <span class="o">=</span> <span class="n">H</span> <span class="o">-</span><span class="n">r_c</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat_origin</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lon_proj_rad</span><span class="o">-</span><span class="n">lambda_0</span><span class="p">)</span>
+        <span class="n">s_y</span> <span class="o">=</span> <span class="o">-</span><span class="n">r_c</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat_origin</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">lon_proj_rad</span><span class="o">-</span><span class="n">lambda_0</span><span class="p">)</span>
+        <span class="n">s_z</span> <span class="o">=</span> <span class="n">r_c</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">lat_origin</span><span class="p">)</span>
+
+        <span class="n">s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">s_x</span><span class="o">**</span><span class="mi">2</span><span class="o">+</span><span class="n">s_y</span><span class="o">**</span><span class="mi">2</span><span class="o">+</span><span class="n">s_z</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+        <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arcsin</span><span class="p">(</span><span class="o">-</span><span class="n">s_y</span><span class="o">/</span><span class="n">s</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan</span><span class="p">(</span><span class="n">s_z</span><span class="o">/</span><span class="n">s_x</span><span class="p">)</span>
+    
+        <span class="n">g16_data_fileT</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">xscanT</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">yscanT</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">XT</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">YT</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">LVT</span> <span class="o">=</span> <span class="p">[]</span>
+    
+        <span class="c1"># Retrieve Temperature data</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">INDEXP</span><span class="p">:</span> 
+            <span class="n">g16_data</span> <span class="o">=</span> <span class="n">nc_filesT</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">g16_data_fileT</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">g16_data</span><span class="p">)</span> 
+            <span class="n">g16</span> <span class="o">=</span> <span class="n">Dataset</span><span class="p">(</span><span class="n">nc_filesT</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> 
+            <span class="n">xtemp</span> <span class="o">=</span> <span class="n">g16</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">][:]</span>
+            <span class="n">xscanT</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">xtemp</span><span class="p">)</span>
+            <span class="n">ytemp</span> <span class="o">=</span> <span class="n">g16</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;y&#39;</span><span class="p">][:]</span>
+            <span class="n">yscanT</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ytemp</span><span class="p">)</span>
+    
+            <span class="n">LVTi</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">Xi</span> <span class="o">=</span> <span class="p">[]</span> 
+            <span class="n">Yi</span> <span class="o">=</span> <span class="p">[]</span> 
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">P_minb</span><span class="p">,</span> <span class="n">P_maxb</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">Xtemp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span> <span class="n">xtemp</span><span class="o">-</span><span class="n">x</span><span class="p">[</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">])</span><span class="o">.</span><span class="n">argmin</span><span class="p">()</span>
+                <span class="n">Xi</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Xtemp</span><span class="p">)</span>
+                <span class="n">Ytemp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span> <span class="n">ytemp</span><span class="o">-</span><span class="n">y</span><span class="p">[</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">])</span><span class="o">.</span><span class="n">argmin</span><span class="p">()</span>
+                <span class="n">Yi</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Ytemp</span><span class="p">)</span>
+                <span class="n">LVTtemp</span> <span class="o">=</span> <span class="n">g16</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;LVT&#39;</span><span class="p">][</span><span class="n">Ytemp</span><span class="p">,</span> <span class="n">Xtemp</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> 
+                <span class="n">LVTi</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">LVTtemp</span><span class="p">)</span>
+            <span class="n">LVT</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">LVTi</span><span class="p">)</span>
+            <span class="n">XT</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Xi</span><span class="p">)</span>
+            <span class="n">YT</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Yi</span><span class="p">)</span>
+        <span class="n">LVT</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">LVT</span><span class="p">)</span>
+    
+        <span class="c1"># Retrieve Relative humidity data</span>
+        <span class="n">g16_data_fileM</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">xscanM</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">yscanM</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">XM</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">YM</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">LVM</span> <span class="o">=</span> <span class="p">[]</span>
+    
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">INDEXP</span><span class="p">:</span>
+            <span class="n">g16_dataM</span> <span class="o">=</span> <span class="n">nc_filesM</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">g16_data_fileM</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">g16_dataM</span><span class="p">)</span> 
+            <span class="n">g16M</span> <span class="o">=</span> <span class="n">Dataset</span><span class="p">(</span><span class="n">nc_filesM</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span>
+            <span class="n">xtempM</span> <span class="o">=</span> <span class="n">g16M</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">][:]</span>
+            <span class="n">xscanM</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">xtempM</span><span class="p">)</span>
+            <span class="n">ytempM</span> <span class="o">=</span> <span class="n">g16M</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;y&#39;</span><span class="p">][:]</span>
+            <span class="n">yscanM</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ytempM</span><span class="p">)</span>
+    
+            <span class="n">LVMi</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">Xi</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">Yi</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">P_minb</span><span class="p">,</span> <span class="n">P_maxb</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">XtempM</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span> <span class="n">xtempM</span><span class="o">-</span><span class="n">x</span><span class="p">[</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">])</span><span class="o">.</span><span class="n">argmin</span><span class="p">()</span>
+                <span class="n">Xi</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">XtempM</span><span class="p">)</span>
+                <span class="n">YtempM</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span> <span class="n">ytempM</span><span class="o">-</span><span class="n">y</span><span class="p">[</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">])</span><span class="o">.</span><span class="n">argmin</span><span class="p">()</span>
+                <span class="n">Yi</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">YtempM</span><span class="p">)</span>
+                <span class="n">LVMtemp</span> <span class="o">=</span> <span class="n">g16M</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;LVM&#39;</span><span class="p">][</span><span class="n">YtempM</span><span class="p">,</span> <span class="n">XtempM</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> 
+                <span class="n">LVMi</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">LVMtemp</span><span class="p">)</span>
+            <span class="n">LVM</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">LVMi</span><span class="p">)</span>
+            <span class="n">XM</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Xi</span><span class="p">)</span>
+            <span class="n">YM</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Yi</span><span class="p">)</span>
+        <span class="n">LVM</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">LVM</span><span class="p">)</span>
+    
+        <span class="n">P</span> <span class="o">=</span> <span class="mi">100</span><span class="o">*</span><span class="n">P</span>
+        <span class="n">LVT</span> <span class="o">=</span> <span class="n">LVT</span><span class="o">-</span><span class="mf">273.15</span>
+    
+        <span class="n">Pi</span> <span class="o">=</span> <span class="n">P</span><span class="p">[</span><span class="n">P_minb</span><span class="p">:</span><span class="n">P_maxb</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="c1"># Constants needed and integrand</span>
+        <span class="n">rho_w</span> <span class="o">=</span> <span class="mi">1000</span> <span class="c1"># kg/m**3</span>
+        <span class="n">g</span> <span class="o">=</span> <span class="mf">9.81</span> <span class="c1">#m/s**2</span>
+        <span class="n">C</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">rho_w</span><span class="o">*</span><span class="n">g</span><span class="p">)</span>
+        <span class="n">ev</span> <span class="o">=</span> <span class="mi">100</span><span class="o">*</span><span class="mf">6.112</span><span class="o">*</span><span class="n">LVM</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">((</span><span class="mf">17.67</span><span class="o">*</span><span class="n">LVT</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">LVT</span><span class="o">+</span><span class="mf">243.5</span><span class="p">))</span> <span class="c1"># Partial water vapour pressure in Pa</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.622</span><span class="o">*</span><span class="n">ev</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">Pi</span><span class="o">-</span><span class="mf">0.378</span><span class="o">*</span><span class="n">ev</span><span class="p">)</span> <span class="c1">#Specific humdity</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="mi">1000</span><span class="o">*</span><span class="n">C</span><span class="o">*</span><span class="n">q</span> <span class="c1">#Complete integrand multiplied by 1000 to get the PWV in mm.</span>
+    
+        <span class="c1"># Numerical integration</span>
+        <span class="n">PWV</span> <span class="o">=</span> <span class="p">[]</span> 
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">LVT</span><span class="p">)):</span>
+            <span class="n">integral</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">Pi</span><span class="p">)):</span> 
+                <span class="n">integral</span> <span class="o">=</span> <span class="n">integral</span> <span class="o">+</span><span class="p">(</span><span class="n">Pi</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">-</span><span class="n">Pi</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">*</span><span class="p">((</span><span class="n">f</span><span class="p">[</span><span class="n">j</span><span class="p">,</span><span class="n">i</span><span class="p">]</span><span class="o">+</span><span class="n">f</span><span class="p">[</span><span class="n">j</span><span class="p">,</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>  
+            <span class="n">PWV</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">integral</span><span class="p">)</span>
+
+        <span class="n">PWV</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">PWV</span><span class="p">)</span>
+
+        <span class="n">out_date</span><span class="o">=</span><span class="n">DATE</span>
+    
+        <span class="k">if</span> <span class="n">plot</span><span class="p">:</span>
+            <span class="c1"># Plot and save data</span>
+            <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">15</span><span class="p">,</span><span class="mi">10</span><span class="p">))</span>
+            <span class="n">ax</span><span class="o">=</span><span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">111</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">HOUR</span><span class="p">,</span> <span class="n">PWV</span><span class="p">,</span> <span class="s1">&#39;bo&#39;</span><span class="p">,</span> <span class="n">ms</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Precipitable Water Vapor along line of sight, </span><span class="si">{}</span><span class="s1"> on </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">location</span><span class="p">,</span> <span class="n">day</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">26</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="n">rotation</span><span class="o">=</span><span class="s1">&#39;vertical&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">24</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">yticks</span><span class="p">(</span><span class="n">fontsize</span><span class="o">=</span><span class="mi">24</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s2">&quot;Date&quot;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;C0&quot;</span><span class="p">,</span> <span class="n">fontsize</span> <span class="o">=</span><span class="mi">24</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s2">&quot;PWV (mm)&quot;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;C0&quot;</span><span class="p">,</span> <span class="n">fontsize</span> <span class="o">=</span><span class="mi">24</span><span class="p">)</span>
+            <span class="n">RA_patch</span> <span class="o">=</span> <span class="n">mpatches</span><span class="o">.</span><span class="n">Patch</span><span class="p">(</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;white&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;RA: </span><span class="si">{}</span><span class="s1"> degrees&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">Ra</span><span class="p">))</span>
+            <span class="n">Dec_patch</span> <span class="o">=</span> <span class="n">mpatches</span><span class="o">.</span><span class="n">Patch</span><span class="p">(</span><span class="n">color</span><span class="o">=</span><span class="s1">&#39;white&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Dec: </span><span class="si">{}</span><span class="s1"> degrees&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">Dec</span><span class="p">))</span>
+            <span class="n">every_nth</span> <span class="o">=</span> <span class="mi">6</span>
+            <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ax</span><span class="o">.</span><span class="n">xaxis</span><span class="o">.</span><span class="n">get_ticklabels</span><span class="p">()):</span>
+                <span class="k">if</span> <span class="n">n</span> <span class="o">%</span> <span class="n">every_nth</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">label</span><span class="o">.</span><span class="n">set_visible</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ax</span><span class="o">.</span><span class="n">xaxis</span><span class="o">.</span><span class="n">get_ticklines</span><span class="p">()):</span>
+                <span class="k">if</span> <span class="n">n</span> <span class="o">%</span> <span class="n">every_nth</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">label</span><span class="o">.</span><span class="n">set_visible</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">handles</span><span class="o">=</span><span class="p">[</span><span class="n">RA_patch</span><span class="p">,</span> <span class="n">Dec_patch</span><span class="p">],</span> <span class="n">loc</span><span class="o">=</span><span class="s1">&#39;lower right&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">22</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+            <span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s1">&#39;PWV_line_of_sight_</span><span class="si">{}</span><span class="s1">_</span><span class="si">{}</span><span class="s1">.png&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">location</span><span class="p">,</span> <span class="n">day</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+        
+        <span class="k">if</span> <span class="n">csv</span><span class="p">:</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">savetxt</span><span class="p">(</span><span class="s1">&#39;PWV_line_of_sight_</span><span class="si">{}</span><span class="s1">_</span><span class="si">{}</span><span class="s1">.csv&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">location</span><span class="p">,</span><span class="n">day</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">((</span><span class="n">date</span><span class="p">,</span> <span class="n">PWV</span><span class="p">)),</span> 
+                   <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span> <span class="p">,</span> <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span> <span class="s1">&#39;Time,PWV&#39;</span><span class="p">,</span> <span class="n">comments</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
+        
+    <span class="c1"># Computes PWV at zenith</span>
+    <span class="k">elif</span> <span class="n">line_of_sight</span> <span class="o">==</span> <span class="s1">&#39;zenith&#39;</span><span class="p">:</span>
+    
+        <span class="c1"># Transform latitude and longitude into scan angles</span>
+        <span class="n">rad</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span><span class="o">/</span><span class="mi">180</span>
+        <span class="n">lambda_0</span> <span class="o">=</span> <span class="n">rad</span><span class="o">*</span><span class="n">lon_origin</span>
+        <span class="n">obs_lat_rad</span> <span class="o">=</span> <span class="n">rad</span><span class="o">*</span><span class="n">latt</span>
+        <span class="n">obs_lon_rad</span> <span class="o">=</span> <span class="n">rad</span><span class="o">*</span><span class="n">lont</span>
+    
+        <span class="n">lat_origin</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan</span><span class="p">(((</span><span class="n">r_pol</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">r_eq</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">tan</span><span class="p">(</span><span class="n">obs_lat_rad</span><span class="p">))</span>
+
+        <span class="n">r_c</span> <span class="o">=</span> <span class="n">r_pol</span><span class="o">/</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="p">(</span><span class="n">e</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat_origin</span><span class="p">))</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+
+        <span class="n">s_x</span> <span class="o">=</span> <span class="n">H</span> <span class="o">-</span><span class="n">r_c</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat_origin</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">obs_lon_rad</span><span class="o">-</span><span class="n">lambda_0</span><span class="p">)</span>
+        <span class="n">s_y</span> <span class="o">=</span> <span class="o">-</span><span class="n">r_c</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat_origin</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">obs_lon_rad</span><span class="o">-</span><span class="n">lambda_0</span><span class="p">)</span>
+        <span class="n">s_z</span> <span class="o">=</span> <span class="n">r_c</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">lat_origin</span><span class="p">)</span>
+
+        <span class="n">s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">s_x</span><span class="o">**</span><span class="mi">2</span><span class="o">+</span><span class="n">s_y</span><span class="o">**</span><span class="mi">2</span><span class="o">+</span><span class="n">s_z</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+        <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arcsin</span><span class="p">(</span><span class="o">-</span><span class="n">s_y</span><span class="o">/</span><span class="n">s</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan</span><span class="p">(</span><span class="n">s_z</span><span class="o">/</span><span class="n">s_x</span><span class="p">)</span>
+    
+        <span class="n">xscanT</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">yscanT</span> <span class="o">=</span> <span class="p">[]</span>
+    
+        <span class="c1"># Retrieve Temperature data</span>
+        <span class="n">LVT</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">nc_filesT</span><span class="p">)):</span>
+            <span class="n">g16_data</span> <span class="o">=</span> <span class="n">nc_filesT</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">g16_data_file</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">g16_data</span><span class="p">)</span> 
+            <span class="n">g16</span> <span class="o">=</span> <span class="n">Dataset</span><span class="p">(</span><span class="n">g16_data_file</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span>
+            <span class="n">xtemp</span> <span class="o">=</span> <span class="n">g16</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">][:]</span>
+            <span class="n">xscanT</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">xtemp</span><span class="p">)</span>
+            <span class="n">ytemp</span> <span class="o">=</span> <span class="n">g16</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;y&#39;</span><span class="p">][:]</span>
+            <span class="n">yscanT</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ytemp</span><span class="p">)</span>
+    
+            <span class="n">XT</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">YT</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">LVTi</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">P</span><span class="p">)):</span>
+                <span class="n">Xtemp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span> <span class="n">xtemp</span><span class="o">-</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">argmin</span><span class="p">()</span> 
+                <span class="n">XT</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Xtemp</span><span class="p">)</span>
+                <span class="n">Ytemp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span> <span class="n">ytemp</span><span class="o">-</span><span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">argmin</span><span class="p">()</span>
+                <span class="n">YT</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Ytemp</span><span class="p">)</span>
+                <span class="n">LVTtemp</span> <span class="o">=</span> <span class="n">g16</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;LVT&#39;</span><span class="p">][</span><span class="n">Ytemp</span><span class="p">,</span> <span class="n">Xtemp</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span>
+                <span class="n">LVTi</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">LVTtemp</span><span class="p">)</span>
+            <span class="n">LVT</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">LVTi</span><span class="p">)</span>
+
+        <span class="n">LVT</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">LVT</span><span class="p">)</span>
+
+        <span class="c1"># Retrieve Relative humidity data</span>
+        <span class="n">g16_data_fileM</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">g16ncM</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">xscanM</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">yscanM</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">LVM</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">nc_filesM</span><span class="p">)):</span>
+            <span class="n">g16_dataM</span> <span class="o">=</span> <span class="n">nc_filesM</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">g16_data_fileM</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">g16_dataM</span><span class="p">)</span> 
+            <span class="n">g16M</span> <span class="o">=</span> <span class="n">Dataset</span><span class="p">(</span><span class="n">g16_data_fileM</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span>
+            <span class="n">xtempM</span> <span class="o">=</span> <span class="n">g16M</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">][:]</span>
+            <span class="n">xscanM</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">xtempM</span><span class="p">)</span>
+            <span class="n">ytempM</span> <span class="o">=</span> <span class="n">g16M</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;y&#39;</span><span class="p">][:]</span>
+            <span class="n">yscanM</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ytempM</span><span class="p">)</span>
+    
+            <span class="n">XM</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">YM</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">LVMi</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">P</span><span class="p">)):</span>
+                <span class="n">XtempM</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span> <span class="n">xtempM</span><span class="o">-</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">argmin</span><span class="p">()</span>
+                <span class="n">XM</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">XtempM</span><span class="p">)</span>
+                <span class="n">YtempM</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span> <span class="n">ytempM</span><span class="o">-</span><span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">argmin</span><span class="p">()</span>
+                <span class="n">YM</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">YtempM</span><span class="p">)</span>
+                <span class="n">LVMtemp</span> <span class="o">=</span> <span class="n">g16M</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;LVM&#39;</span><span class="p">][</span><span class="n">YtempM</span><span class="p">,</span> <span class="n">XtempM</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span>
+                <span class="n">LVMi</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">LVMtemp</span><span class="p">)</span>
+            <span class="n">LVM</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">LVMi</span><span class="p">)</span>
+
+        <span class="n">LVM</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">LVM</span><span class="p">)</span>
+
+        <span class="c1"># Change pressure units to Pa and Temperature to K</span>
+        <span class="n">P</span> <span class="o">=</span> <span class="mi">100</span><span class="o">*</span><span class="n">P</span> 
+        <span class="n">LVT</span> <span class="o">=</span> <span class="n">LVT</span><span class="o">-</span><span class="mf">273.15</span>
+    
+        <span class="c1"># Constants needed and integrand</span>
+        <span class="n">rho_w</span> <span class="o">=</span> <span class="mi">1000</span> <span class="c1"># kg/m**3</span>
+        <span class="n">g</span> <span class="o">=</span> <span class="mf">9.81</span> <span class="c1">#m/s**2</span>
+        <span class="n">C</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">rho_w</span><span class="o">*</span><span class="n">g</span><span class="p">)</span>
+        <span class="n">ev</span> <span class="o">=</span> <span class="mi">100</span><span class="o">*</span><span class="mf">6.11</span><span class="o">*</span><span class="n">LVM</span><span class="o">*</span><span class="mi">10</span><span class="o">**</span><span class="p">((</span><span class="mf">7.5</span><span class="o">*</span><span class="n">LVT</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">LVT</span><span class="o">+</span><span class="mf">237.15</span><span class="p">))</span> <span class="c1"># Partial water vapour pressure in Pa</span>
+        <span class="c1">#ev = 100*6.112*LVM*np.exp((17.67*LVT)/(LVT+243.5))</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.622</span><span class="o">*</span><span class="n">ev</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">P</span><span class="o">-</span><span class="mf">0.378</span><span class="o">*</span><span class="n">ev</span><span class="p">)</span> <span class="c1">#Specific humdity</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="mi">1000</span><span class="o">*</span><span class="n">C</span><span class="o">*</span><span class="n">q</span> <span class="c1">#Complete integrand multiplied by 1000 to get the PWV in mm.</span>
+
+        <span class="c1"># Numerical integration</span>
+        <span class="n">PWV</span> <span class="o">=</span> <span class="p">[]</span> 
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">nc_filesT</span><span class="p">)):</span> 
+            <span class="n">integral</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">P_minb</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">P_maxb</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">integral</span> <span class="o">=</span> <span class="n">integral</span> <span class="o">+</span><span class="p">(</span><span class="n">P</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">-</span><span class="n">P</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">*</span><span class="p">((</span><span class="n">f</span><span class="p">[</span><span class="n">j</span><span class="p">,</span><span class="n">i</span><span class="p">]</span><span class="o">+</span><span class="n">f</span><span class="p">[</span><span class="n">j</span><span class="p">,</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>  
+            <span class="n">PWV</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">integral</span><span class="p">)</span>
+
+        <span class="n">PWV</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">PWV</span><span class="p">)</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="n">PWV</span><span class="p">)</span>
+
+        <span class="c1">#PWV = np.nan_to_num(PWV)</span>
+        <span class="n">out_date</span><span class="o">=</span><span class="n">date</span>
+    
+        <span class="k">if</span> <span class="n">plot</span><span class="p">:</span>
+            <span class="c1"># Plot and save data</span>
+            <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">15</span><span class="p">,</span><span class="mi">10</span><span class="p">))</span>
+            <span class="n">ax</span><span class="o">=</span><span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">111</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">hour</span><span class="p">,</span> <span class="n">PWV</span><span class="p">,</span> <span class="s1">&#39;bo&#39;</span><span class="p">,</span> <span class="n">ms</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Precipitable Water Vapor at zenith, </span><span class="si">{}</span><span class="s1"> on </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">location</span><span class="p">,</span> <span class="n">day</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">26</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="n">rotation</span><span class="o">=</span><span class="s1">&#39;vertical&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">24</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">yticks</span><span class="p">(</span><span class="n">fontsize</span><span class="o">=</span><span class="mi">24</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s2">&quot;Date&quot;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;C0&quot;</span><span class="p">,</span> <span class="n">fontsize</span> <span class="o">=</span><span class="mi">24</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s2">&quot;PWV (mm)&quot;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;C0&quot;</span><span class="p">,</span> <span class="n">fontsize</span> <span class="o">=</span><span class="mi">24</span><span class="p">)</span>
+            <span class="n">every_nth</span> <span class="o">=</span> <span class="mi">6</span>
+            <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ax</span><span class="o">.</span><span class="n">xaxis</span><span class="o">.</span><span class="n">get_ticklabels</span><span class="p">()):</span>
+                <span class="k">if</span> <span class="n">n</span> <span class="o">%</span> <span class="n">every_nth</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">label</span><span class="o">.</span><span class="n">set_visible</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ax</span><span class="o">.</span><span class="n">xaxis</span><span class="o">.</span><span class="n">get_ticklines</span><span class="p">()):</span>
+                <span class="k">if</span> <span class="n">n</span> <span class="o">%</span> <span class="n">every_nth</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">label</span><span class="o">.</span><span class="n">set_visible</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+            <span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s1">&#39;PWV_at_zenith_</span><span class="si">{}</span><span class="s1">_</span><span class="si">{}</span><span class="s1">.png&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">location</span><span class="p">,</span> <span class="n">day</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+    
+        <span class="k">if</span> <span class="n">csv</span><span class="p">:</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">savetxt</span><span class="p">(</span><span class="s1">&#39;PWV_zenith_</span><span class="si">{}</span><span class="s1">_</span><span class="si">{}</span><span class="s1">.csv&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">location</span><span class="p">,</span><span class="n">day</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">((</span><span class="n">date</span><span class="p">,</span> <span class="n">PWV</span><span class="p">)),</span> 
+                   <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span> <span class="p">,</span> <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span> <span class="s1">&#39;Time,PWV&#39;</span><span class="p">,</span> <span class="n">comments</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
+            
+    <span class="k">return</span> <span class="n">out_date</span><span class="p">,</span> <span class="n">PWV</span> <span class="c1">#, LVT, LVM, x, y, latt, lont, P_minb, P_maxb</span></div>
+
+<div class="viewcode-block" id="tpw"><a class="viewcode-back" href="../../api/fyodor.tpw.html#fyodor.tpw">[docs]</a><span class="k">def</span> <span class="nf">tpw</span><span class="p">(</span><span class="n">path</span><span class="p">,</span><span class="n">latitude</span><span class="p">,</span><span class="n">longitude</span><span class="p">,</span><span class="n">plot</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span><span class="n">csv</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the precipitable water vapor (PWV) at ``location`` at zenith or in direction of</span>
+<span class="sd">    ``line_of_sight`` using the Total Precipitable Water (TPW) product by NOAA.</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    path : str</span>
+<span class="sd">        Working directory with GOES-R files in it</span>
+<span class="sd">    latitude : float</span>
+<span class="sd">        Latitude coordinates of the location (degrees)</span>
+<span class="sd">    longitude : float</span>
+<span class="sd">        Longitude coordinates of the location (degrees)</span>
+<span class="sd">    plot : bool</span>
+<span class="sd">        Generate a plot of the PWV at each time.</span>
+<span class="sd">    csv : bool</span>
+<span class="sd">        Generate a csv file of the PWV at each time.</span>
+<span class="sd">    </span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dates : list</span>
+<span class="sd">    TPW : `~numpy.ndarray`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1">#navigate to directory with .nc data files</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">))</span>
+    <span class="n">full_direc</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">()</span>
+    <span class="n">nc_files</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s1">&#39;*OR_ABI-L2-TPWF*&#39;</span><span class="p">)</span> 
+    <span class="n">nc_files</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">nc_files</span><span class="p">)</span>
+    <span class="n">g16_data_file</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">g16nc</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">xscan</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">yscan</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">nc_files</span><span class="p">)):</span>
+        <span class="n">nc_indx</span> <span class="o">=</span> <span class="n">i</span>
+        <span class="n">g16_data</span> <span class="o">=</span> <span class="n">nc_files</span><span class="p">[</span><span class="n">nc_indx</span><span class="p">]</span>
+        <span class="n">g16_data_file</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">g16_data</span><span class="p">)</span>
+        <span class="n">g16</span> <span class="o">=</span> <span class="n">Dataset</span><span class="p">(</span><span class="n">g16_data_file</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span>
+        <span class="n">g16nc</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">g16</span><span class="p">)</span>
+        <span class="n">xtemp</span> <span class="o">=</span> <span class="n">g16nc</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">][:]</span>
+        <span class="n">xscan</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">xtemp</span><span class="p">)</span>
+        <span class="n">ytemp</span> <span class="o">=</span> <span class="n">g16nc</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;y&#39;</span><span class="p">][:]</span>
+        <span class="n">yscan</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ytemp</span><span class="p">)</span>
+
+    <span class="c1"># GOES-R projection info and retrieving relevant constants</span>
+    <span class="n">proj_info</span> <span class="o">=</span> <span class="n">g16nc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;goes_imager_projection&#39;</span><span class="p">]</span>
+    <span class="n">lon_origin</span> <span class="o">=</span> <span class="n">proj_info</span><span class="o">.</span><span class="n">longitude_of_projection_origin</span>
+    <span class="n">H</span> <span class="o">=</span> <span class="n">proj_info</span><span class="o">.</span><span class="n">perspective_point_height</span><span class="o">+</span><span class="n">proj_info</span><span class="o">.</span><span class="n">semi_major_axis</span>
+    <span class="n">r_eq</span> <span class="o">=</span> <span class="n">proj_info</span><span class="o">.</span><span class="n">semi_major_axis</span>
+    <span class="n">r_pol</span> <span class="o">=</span> <span class="n">proj_info</span><span class="o">.</span><span class="n">semi_minor_axis</span>
+
+    <span class="n">e</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">r_eq</span><span class="o">**</span><span class="mi">2</span><span class="o">-</span><span class="n">r_pol</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">r_eq</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+    <span class="n">rad</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span><span class="o">/</span><span class="mi">180</span>
+    <span class="n">lat</span> <span class="o">=</span> <span class="n">rad</span><span class="o">*</span><span class="n">latitude</span>
+    <span class="n">lon</span> <span class="o">=</span> <span class="n">rad</span><span class="o">*</span><span class="n">longitude</span>
+    <span class="n">lambda_0</span> <span class="o">=</span> <span class="n">rad</span><span class="o">*</span><span class="n">lon_origin</span>
+    <span class="n">lat_origin</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan</span><span class="p">(((</span><span class="n">r_pol</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">r_eq</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">tan</span><span class="p">(</span><span class="n">lat</span><span class="p">))</span>
+    <span class="n">r_c</span> <span class="o">=</span> <span class="n">r_pol</span><span class="o">/</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="p">(</span><span class="n">e</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat_origin</span><span class="p">))</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+    <span class="n">s_x</span> <span class="o">=</span> <span class="n">H</span> <span class="o">-</span><span class="n">r_c</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat_origin</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lon</span><span class="o">-</span><span class="n">lambda_0</span><span class="p">)</span>
+    <span class="n">s_y</span> <span class="o">=</span> <span class="o">-</span><span class="n">r_c</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat_origin</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">lon</span><span class="o">-</span><span class="n">lambda_0</span><span class="p">)</span>
+    <span class="n">s_z</span> <span class="o">=</span> <span class="n">r_c</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">lat_origin</span><span class="p">)</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">s_x</span><span class="o">**</span><span class="mi">2</span><span class="o">+</span><span class="n">s_y</span><span class="o">**</span><span class="mi">2</span><span class="o">+</span><span class="n">s_z</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="c1">#Convert into scan angles</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arcsin</span><span class="p">(</span><span class="o">-</span><span class="n">s_y</span><span class="o">/</span><span class="n">s</span><span class="p">)</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan</span><span class="p">(</span><span class="n">s_z</span><span class="o">/</span><span class="n">s_x</span><span class="p">)</span>
+
+    <span class="n">X</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">Y</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">TPW</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">nc_files</span><span class="p">)):</span>
+        <span class="n">Xtemp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span> <span class="n">xscan</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">-</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">argmin</span><span class="p">()</span>
+        <span class="n">Ytemp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span> <span class="n">yscan</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">-</span><span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">argmin</span><span class="p">()</span>
+        <span class="n">X</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Xtemp</span><span class="p">)</span>
+        <span class="n">Y</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Ytemp</span><span class="p">)</span>
+        <span class="n">TPWtemp</span> <span class="o">=</span> <span class="n">g16nc</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;TPW&#39;</span><span class="p">][:]</span>
+        <span class="n">TPWtemp</span> <span class="o">=</span> <span class="n">TPWtemp</span><span class="p">[</span><span class="n">Y</span><span class="p">[</span><span class="n">i</span><span class="p">],</span><span class="n">X</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span>
+        <span class="n">TPW</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">TPWtemp</span><span class="p">)</span>
+
+    <span class="c1">#Record time of measurement</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">epoch</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">date</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">plottime</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">nc_files</span><span class="p">)):</span>
+        <span class="n">ttemp</span> <span class="o">=</span> <span class="n">g16nc</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;t&#39;</span><span class="p">][:]</span>
+        <span class="n">t</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ttemp</span><span class="p">)</span>
+        <span class="n">epochtemp</span> <span class="o">=</span> <span class="mi">946728000</span><span class="o">+</span> <span class="nb">int</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+        <span class="n">epoch</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">epochtemp</span><span class="p">)</span>
+        <span class="n">datetemp</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2"> %H:%M:%S&quot;</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">gmtime</span><span class="p">(</span><span class="n">epoch</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+        <span class="n">date</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">datetemp</span><span class="p">)</span>
+        <span class="n">plottimetemp</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%H:%M:%S&quot;</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">gmtime</span><span class="p">(</span><span class="n">epoch</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+        <span class="n">plottime</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">plottimetemp</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">nc_files</span><span class="p">)):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Total precipitable water in Paranal: </span><span class="si">{}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">TPW</span><span class="p">[</span><span class="n">i</span><span class="p">]),</span> <span class="s2">&quot;Time:</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">date</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+    <span class="n">day</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%a</span><span class="s2">, </span><span class="si">%d</span><span class="s2"> %b %Y&quot;</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">gmtime</span><span class="p">(</span><span class="n">epoch</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+
+    <span class="k">if</span> <span class="n">plot</span><span class="p">:</span>
+        <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">15</span><span class="p">,</span><span class="mi">10</span><span class="p">))</span>
+        <span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">111</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">plottime</span><span class="p">,</span> <span class="n">TPW</span><span class="p">,</span> <span class="s1">&#39;k.&#39;</span><span class="p">,</span> <span class="n">ms</span><span class="o">=</span><span class="mi">6</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="n">rotation</span><span class="o">=</span><span class="s1">&#39;vertical&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">24</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">yticks</span><span class="p">(</span><span class="n">fontsize</span><span class="o">=</span><span class="mi">24</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s2">&quot;Date&quot;</span><span class="p">,</span> <span class="n">fontsize</span> <span class="o">=</span><span class="mi">24</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s2">&quot;PWV [mm]&quot;</span><span class="p">,</span> <span class="n">fontsize</span> <span class="o">=</span><span class="mi">24</span><span class="p">)</span>
+        <span class="n">every_nth</span> <span class="o">=</span> <span class="mi">6</span>
+        <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ax</span><span class="o">.</span><span class="n">xaxis</span><span class="o">.</span><span class="n">get_ticklabels</span><span class="p">()):</span>
+            <span class="k">if</span> <span class="n">n</span> <span class="o">%</span> <span class="n">every_nth</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">label</span><span class="o">.</span><span class="n">set_visible</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ax</span><span class="o">.</span><span class="n">xaxis</span><span class="o">.</span><span class="n">get_ticklines</span><span class="p">()):</span>
+            <span class="k">if</span> <span class="n">n</span> <span class="o">%</span> <span class="n">every_nth</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">label</span><span class="o">.</span><span class="n">set_visible</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s1">&#39;TPW_</span><span class="si">{}</span><span class="s1">.png&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">day</span><span class="p">),</span> <span class="n">bbox_inches</span> <span class="o">=</span> <span class="s1">&#39;tight&#39;</span><span class="p">,</span> <span class="n">pad_inches</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">csv</span><span class="p">:</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">savetxt</span><span class="p">(</span><span class="s1">&#39;TPW_</span><span class="si">{}</span><span class="s1">.csv&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">day</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">((</span><span class="n">date</span><span class="p">,</span> <span class="n">TPW</span><span class="p">)),</span> 
+               <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span> <span class="p">,</span> <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span> <span class="s1">&#39;Time,PWV&#39;</span><span class="p">,</span> <span class="n">comments</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">plottime</span><span class="p">,</span><span class="n">TPW</span></div>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">fyodor</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../api/fyodor.downloadNC.html">downloadNC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/fyodor.pwv.html">pwv</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/fyodor.renameNC.html">renameNC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/fyodor.tpw.html">tpw</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2020, Erik Andreas Meier Valdés.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.4.3</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,140 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>pwv &#8212; fyodor 0.1.dev10+g3e9623e.d20210119 documentation</title>
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="renameNC" href="fyodor.renameNC.html" />
+    <link rel="prev" title="downloadNC" href="fyodor.downloadNC.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="pwv">
+<h1>pwv<a class="headerlink" href="#pwv" title="Permalink to this headline">¶</a></h1>
+<dl class="py function">
+<dt id="fyodor.pwv">
+<code class="sig-prename descclassname">fyodor.</code><code class="sig-name descname">pwv</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">directory</span></em>, <em class="sig-param"><span class="n">location</span></em>, <em class="sig-param"><span class="n">P_min</span></em>, <em class="sig-param"><span class="n">P_max</span></em>, <em class="sig-param"><span class="n">line_of_sight</span><span class="o">=</span><span class="default_value">'zenith'</span></em>, <em class="sig-param"><span class="n">RA</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">Dec</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">plot</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">csv</span><span class="o">=</span><span class="default_value">False</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/fyodor/core.html#pwv"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fyodor.pwv" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the precipitable water vapor (PWV) at <code class="docutils literal notranslate"><span class="pre">location</span></code> at zenith or in direction of
+<code class="docutils literal notranslate"><span class="pre">line_of_sight</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>directory</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><em>str</em></a>) – Working directory with GOES-R files in it</p></li>
+<li><p><strong>location</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><em>str</em></a><em>, </em><em>{&quot;Cerro Paranal&quot;</em><em>, </em><em>&quot;San Pedro Martir&quot;</em><em>, </em><em>&quot;Other&quot;} The input &quot;Other&quot; leads to a dialog</em>) – window where the user has to enter the latitude and longitude (in degrees) of the location of interest</p></li>
+<li><p><strong>P_min</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.9)"><em>float</em></a>) – Lower pressure level (lower altitude). Range between 1100 and 0.05 (hPa)</p></li>
+<li><p><strong>P_max</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.9)"><em>float</em></a>) – Upper pressure level (higher altitude). Range between 1100 and 0.05 (hPa)</p></li>
+<li><p><strong>line_of_sight</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><em>str</em></a><em>, </em><em>{&quot;target&quot;</em><em>, </em><em>&quot;zenith&quot;}</em>) – Either compute line of sight to the target or to the zenith.</p></li>
+<li><p><strong>RA</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.9)"><em>float</em></a>) – Right ascension of target (in degrees)</p></li>
+<li><p><strong>Dec</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.9)"><em>float</em></a>) – Declination of target (in degrees)</p></li>
+<li><p><strong>plot</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.9)"><em>bool</em></a>) – Generate a plot of the PWV at each time.</p></li>
+<li><p><strong>csv</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.9)"><em>bool</em></a>) – Generate a csv file of the PWV at each time.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>dates</strong> (<em>list</em>)</p></li>
+<li><p><strong>PWV</strong> (<cite>~numpy.ndarray</cite>)</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">fyodor</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="fyodor.downloadNC.html">downloadNC</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">pwv</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fyodor.renameNC.html">renameNC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fyodor.tpw.html">tpw</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="fyodor.downloadNC.html" title="previous chapter">downloadNC</a></li>
+      <li>Next: <a href="fyodor.renameNC.html" title="next chapter">renameNC</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2020, Erik Andreas Meier Valdés.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.4.3</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="../_sources/api/fyodor.pwv.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

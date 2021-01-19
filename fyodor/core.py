@@ -30,6 +30,8 @@ def renameNC(directory):
     """
     Rename GOES-R .nc files downloaded via subscription. It removes the order number at the start of the filename. 
     This must be done so that the pwv function can retrieve measurements in chronological order.
+    
+    Parameters
     ----------
     Directory : str
         Directory path containing the files.
@@ -59,6 +61,7 @@ def createFolder(directory):
 def downloadNC(url, directory, date):
     """
     Download .nc files from the NOAA webpage after manually requesting the dataset and store them in a new folder 
+    
     Parameters
     ----------
     url : str
@@ -106,6 +109,7 @@ def pwv(directory, location, P_min, P_max, line_of_sight='zenith', RA=None, Dec=
     """
     Compute the precipitable water vapor (PWV) at ``location`` at zenith or in direction of
     ``line_of_sight``.
+    
     Parameters
     ----------
     directory : str
@@ -122,14 +126,11 @@ def pwv(directory, location, P_min, P_max, line_of_sight='zenith', RA=None, Dec=
         Right ascension of target (in degrees)
     Dec : float
         Declination of target (in degrees)
-    P_min : float
-        Minimum pressure (hPa)
-    P_max : float
-        Maximum pressure (hPa)
     plot : bool
         Generate a plot of the PWV at each time.
     csv : bool
-        Generate a csv file of the PWV at each time.
+        Generate a csv file of the PWV at each time. 
+
     Returns
     -------
     dates : list
@@ -590,6 +591,7 @@ def tpw(path,latitude,longitude,plot=False,csv=False):
     """
     Compute the precipitable water vapor (PWV) at ``location`` at zenith or in direction of
     ``line_of_sight`` using the Total Precipitable Water (TPW) product by NOAA.
+    
     Parameters
     ----------
     path : str
@@ -602,6 +604,7 @@ def tpw(path,latitude,longitude,plot=False,csv=False):
         Generate a plot of the PWV at each time.
     csv : bool
         Generate a csv file of the PWV at each time.
+    
     Returns
     -------
     dates : list
