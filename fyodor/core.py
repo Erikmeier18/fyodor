@@ -4,21 +4,16 @@ import numpy as np
 import time                                                             
 import matplotlib.pyplot as plt  
 import matplotlib.patches as mpatches
-import matplotlib.dates as mdates
-import pylab  
 import glob
-import astroplan
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.coordinates import EarthLocation, AltAz
 from astropy.time import Time
 from astropy.utils.data import clear_download_cache
-from astroplan import Observer, FixedTarget
-from astropy.coordinates import ICRS
+from astroplan import Observer
 from astropy.constants import R_earth
 import requests
 from bs4 import BeautifulSoup
-import urllib
 import wget
 
 __all__ = ['renameNC', 'downloadNC', 'tpw', 'pwv']
@@ -210,7 +205,7 @@ def pwv(directory, location, P_min, P_max, line_of_sight='zenith', RA=None, Dec=
         latdeg = 30.9058267
         londeg = -115.4254954
         site = 'San Pedro Mártir'
-    elif location == 'Arbitrary': 
+    elif location == 'Other': 
         site = 'Lat; {} degrees Lon: {} degrees.'.format(latdeg, londeg)
         print('First type latitude coordinate, hit Enter, then longitude coordinate and Enter again.')
         print('Latitude valid range: [-81.3282, 81.3283] \n'
@@ -429,7 +424,7 @@ def pwv(directory, location, P_min, P_max, line_of_sight='zenith', RA=None, Dec=
             fig = plt.figure(figsize=(15,10))
             ax=fig.add_subplot(111)
             ax.plot(HOUR, PWV, 'bo', ms=4)
-            plt.title('Precipitable Water Vapor along line of sight, {} on {}'.format(location, day[1]), fontsize=26)
+            plt.title('Precipitable Water Vapor along line of sight, {} on {}'.format(site, day[1]), fontsize=26)
             plt.xticks(rotation='vertical', fontsize=24)
             plt.yticks(fontsize=24)
             ax.set_xlabel("Date", color="C0", fontsize =24)
@@ -446,10 +441,10 @@ def pwv(directory, location, P_min, P_max, line_of_sight='zenith', RA=None, Dec=
             plt.tight_layout()
             plt.legend(handles=[RA_patch, Dec_patch], loc='lower right', fontsize=22)
             plt.show()
-            fig.savefig('PWV_line_of_sight_{}_{}.png'.format(location, day[1]))
+            fig.savefig('PWV_line_of_sight_{}_{}.png'.format(site, day[1]))
         
         if csv:
-            np.savetxt('PWV_line_of_sight_{}_{}.csv'.format(location,day[1]), np.column_stack((date, PWV)), 
+            np.savetxt('PWV_line_of_sight_{}_{}.csv'.format(site,day[1]), np.column_stack((date, PWV)), 
                    delimiter=',' , fmt = '%s', header= 'Time,PWV', comments='')
         
     # Computes PWV at zenith
@@ -540,8 +535,8 @@ def pwv(directory, location, P_min, P_max, line_of_sight='zenith', RA=None, Dec=
         rho_w = 1000 # kg/m**3
         g = 9.81 #m/s**2
         C = (-1)/(rho_w*g)
-        ev = 100*6.11*LVM*10**((7.5*LVT)/(LVT+237.15)) # Partial water vapour pressure in Pa
-        #ev = 100*6.112*LVM*np.exp((17.67*LVT)/(LVT+243.5))
+        #ev = 100*6.11*LVM*10**((7.5*LVT)/(LVT+237.15)) # Partial water vapour pressure in Pa
+        ev = 100*6.112*LVM*np.exp((17.67*LVT)/(LVT+243.5))
         q = (0.622*ev)/(P-0.378*ev) #Specific humdity
         f = 1000*C*q #Complete integrand multiplied by 1000 to get the PWV in mm.
 
@@ -555,9 +550,6 @@ def pwv(directory, location, P_min, P_max, line_of_sight='zenith', RA=None, Dec=
 
         PWV = np.asarray(PWV)
 
-        print(PWV)
-
-        #PWV = np.nan_to_num(PWV)
         out_date=date
     
         if plot:
@@ -565,7 +557,7 @@ def pwv(directory, location, P_min, P_max, line_of_sight='zenith', RA=None, Dec=
             fig = plt.figure(figsize=(15,10))
             ax=fig.add_subplot(111)
             ax.plot(hour, PWV, 'bo', ms=4)
-            plt.title('Precipitable Water Vapor at zenith, {} on {}'.format(location, day[1]), fontsize=26)
+            plt.title('Precipitable Water Vapor at zenith, {} on {}'.format(site, day[1]), fontsize=26)
             plt.xticks(rotation='vertical', fontsize=24)
             plt.yticks(fontsize=24)
             ax.set_xlabel("Date", color="C0", fontsize =24)
@@ -579,32 +571,30 @@ def pwv(directory, location, P_min, P_max, line_of_sight='zenith', RA=None, Dec=
                     label.set_visible(False)
             plt.tight_layout()
             plt.show()
-            fig.savefig('PWV_at_zenith_{}_{}.png'.format(location, day[1]))
+            fig.savefig('PWV_at_zenith_{}_{}.png'.format(site, day[1]))
     
         if csv:
-            np.savetxt('PWV_zenith_{}_{}.csv'.format(location,day[1]), np.column_stack((date, PWV)), 
+            np.savetxt('PWV_zenith_{}_{}.csv'.format(site,day[1]), np.column_stack((date, PWV)), 
                    delimiter=',' , fmt = '%s', header= 'Time,PWV', comments='')
             
-    return out_date, PWV #, LVT, LVM, x, y, latt, lont, P_minb, P_maxb
+    return out_date, PWV, LVT, LVM #, x, y, latt, lont, P_minb, P_maxb
 
-def tpw(path,latitude,longitude,plot=False,csv=False):
+def tpw(path,location,plot=False,csv=False):
     """
     Compute the precipitable water vapor (PWV) at ``location`` at zenith or in direction of
     ``line_of_sight`` using the Total Precipitable Water (TPW) product by NOAA.
-    
+
     Parameters
     ----------
     path : str
         Working directory with GOES-R files in it
-    latitude : float
-        Latitude coordinates of the location (degrees)
-    longitude : float
-        Longitude coordinates of the location (degrees)
+    location : str, {"Cerro Paranal", "San Pedro Martir", "Other"} The input "Other" leads to a dialog
+        window where the user has to enter the latitude and longitude (in degrees) of the location of interest.
     plot : bool
         Generate a plot of the PWV at each time.
     csv : bool
         Generate a csv file of the PWV at each time.
-    
+
     Returns
     -------
     dates : list
@@ -681,8 +671,6 @@ def tpw(path,latitude,longitude,plot=False,csv=False):
         plottimetemp = time.strftime("%H:%M:%S", time.gmtime(epoch[i]))
         plottime.append(plottimetemp)
 
-    for i in range(0,len(nc_files)):
-        print("Total precipitable water in Paranal: {}\n".format(TPW[i]), "Time:{}".format(date[i]))
     day = time.strftime("%a, %d %b %Y", time.gmtime(epoch[1]))
 
     if plot:
@@ -700,11 +688,11 @@ def tpw(path,latitude,longitude,plot=False,csv=False):
         for n, label in enumerate(ax.xaxis.get_ticklines()):
             if n % every_nth != 0:
                 label.set_visible(False)
-        fig.savefig('TPW_{}.png'.format(day), bbox_inches = 'tight', pad_inches = 0.1)
+        fig.savefig('TPW_{}_{}.png'.format(site,day), bbox_inches = 'tight', pad_inches = 0.1)
         plt.show()
 
     if csv:
-        np.savetxt('TPW_{}.csv'.format(day), np.column_stack((date, TPW)), 
+        np.savetxt('TPW_{}_{}.csv'.format(site,day), np.column_stack((date, TPW)), 
                delimiter=',' , fmt = '%s', header= 'Time,PWV', comments='')
 
     return plottime,TPW
