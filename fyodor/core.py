@@ -708,4 +708,4 @@ def tpw(path,location,plot=False,csv=False):
         np.savetxt('TPW_{}_{}.csv'.format(site,day), np.column_stack((date, TPW)), 
                delimiter=',' , fmt = '%s', header= 'Time,PWV', comments='')
 
-    return plottime,TPW
+    return date,TPW
