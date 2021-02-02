@@ -10,25 +10,24 @@ from astropy.coordinates import SkyCoord
 from astropy.coordinates import EarthLocation, AltAz
 from astropy.time import Time
 from astropy.utils.data import clear_download_cache
-from astroplan import Observer
 from astropy.constants import R_earth
 import requests
 from bs4 import BeautifulSoup
 import wget
 
-__all__ = ['renameNC', 'downloadNC', 'tpw', 'pwv']
+__all__ = ['rename_nc', 'download_nc', 'tpw', 'pwv']
 
 clear_download_cache()
 
 
-def renameNC(directory):
+def rename_nc(directory):
     """
     Rename GOES-R .nc files downloaded via subscription. It removes the order number at the start of the filename. 
     This must be done so that the pwv function can retrieve measurements in chronological order.
     
     Parameters
     ----------
-    Directory : str
+    directory : str
         Directory path containing the files.
     """
     os.chdir(str(directory))
@@ -38,12 +37,12 @@ def renameNC(directory):
             tmp = int(full_direc[i].split('.')[0])
             dst = full_direc[i].split('.')[1] + '.' + full_direc[i].split('.')[2]
             src = full_direc[i]
-            os.rename(src,dst)
+            os.rename(src, dst)
         except Exception:
             pass
         
         
-def createFolder(directory):
+def create_folder(directory):
     try:
         if not os.path.exists(directory):
             os.makedirs(directory)
@@ -53,7 +52,7 @@ def createFolder(directory):
         print("Error: Creating directory." + directory) 
         
 
-def downloadNC(url, directory, date):
+def download_nc(url, directory, date):
     """
     Download .nc files from the NOAA webpage after manually requesting the dataset and store them in a new folder 
     
@@ -70,7 +69,7 @@ def downloadNC(url, directory, date):
     any_day = str(date)                         
     date = time.strptime(any_day, '%d %m %Y') 
 
-    createFolder(str(directory) + "/Data PWV {}".format(any_day))
+    create_folder(str(directory) + "/Data PWV {}".format(any_day))
     os.chdir(directory + '/Data PWV {}'.format(any_day))
     
     url = str(url)
@@ -130,11 +129,12 @@ def pwv(directory, location, P_min, P_max, line_of_sight='zenith', RA=None, Dec=
     -------
     dates : list
     PWV : `~numpy.ndarray`
+    LVT : `~numpy.ndarray`
+    LVM : `~numpy.ndarray`
     """
 
     # Access working directory
     os.chdir(directory)
-    full_direc = os.listdir()
     nc_filesT = glob.glob('*OR_ABI-L2-LVTPF*') 
     nc_filesT = sorted(nc_filesT)
     nc_filesM = glob.glob('*OR_ABI-L2-LVMPF*')
@@ -155,7 +155,6 @@ def pwv(directory, location, P_min, P_max, line_of_sight='zenith', RA=None, Dec=
 
     # Retrieve time data
     g16_data_file = []
-    g16nc = []
     t = []
     epoch = []
     date = []
@@ -232,19 +231,9 @@ def pwv(directory, location, P_min, P_max, line_of_sight='zenith', RA=None, Dec=
     P_maxb = np.abs(P-P_max).argmin()
 
     loc = EarthLocation(lat=latdeg*u.degree, lon=londeg*u.degree)
-    obs = Observer(location=loc)
-
-    # Convert from degrees to radian:
-    degrad = np.pi/180 
 
     # Convert from radian to degrees:
     raddeg = 180/np.pi
-
-    # Earth's radius (m):
-    R = 6371*1000  
-
-    latO = degrad*latdeg
-    lonO = degrad*londeg
 
     if line_of_sight == 'zenith':
         latt = latdeg
@@ -400,12 +389,12 @@ def pwv(directory, location, P_min, P_max, line_of_sight='zenith', RA=None, Dec=
         Pi = P[P_minb:P_maxb+1]
 
         # Constants needed and integrand
-        rho_w = 1000 # kg/m**3
-        g = 9.81 #m/s**2
+        rho_w = 1000  # kg/m**3
+        g = 9.81  #m/s**2
         C = (-1)/(rho_w*g)
-        ev = 100*6.112*LVM*np.exp((17.67*LVT)/(LVT+243.5)) # Partial water vapour pressure in Pa
-        q = (0.622*ev)/(Pi-0.378*ev) #Specific humdity
-        f = 1000*C*q #Complete integrand multiplied by 1000 to get the PWV in mm.
+        ev = 100*6.112*LVM*np.exp((17.67*LVT)/(LVT+243.5))  # Partial water vapour pressure in Pa
+        q = (0.622*ev)/(Pi-0.378*ev)  #Specific humdity
+        f = 1000*C*q  #Complete integrand multiplied by 1000 to get the PWV in mm.
     
         # Numerical integration
         PWV = [] 
@@ -451,7 +440,7 @@ def pwv(directory, location, P_min, P_max, line_of_sight='zenith', RA=None, Dec=
     elif line_of_sight == 'zenith':
     
         # Transform latitude and longitude into scan angles
-        rad = (np.pi)/180
+        rad = np.pi/180
         lambda_0 = rad*lon_origin
         obs_lat_rad = rad*latt
         obs_lon_rad = rad*lont
@@ -499,7 +488,6 @@ def pwv(directory, location, P_min, P_max, line_of_sight='zenith', RA=None, Dec=
 
         # Retrieve Relative humidity data
         g16_data_fileM = []
-        g16ncM = []
         xscanM = []
         yscanM = []
         LVM = []
@@ -603,7 +591,6 @@ def tpw(path,location,plot=False,csv=False):
 
     #navigate to directory with .nc data files
     os.chdir(str(path))
-    full_direc = os.listdir()
     nc_files = glob.glob('*OR_ABI-L2-TPWF*') 
     nc_files = sorted(nc_files)
     g16_data_file = []
@@ -630,6 +617,32 @@ def tpw(path,location,plot=False,csv=False):
 
     e = np.sqrt((r_eq**2-r_pol**2)/(r_eq**2))
     rad = (np.pi)/180
+    if location == 'Cerro Paranal':
+        latitude = -24.6230
+        longitude = -70.4025
+        site = 'Cerro Paranal'
+    elif location == 'San Pedro Martir':
+        latitude = 30.9058267
+        longitude = -115.4254954
+        site = 'San Pedro Mártir'
+    elif location == 'Other':
+        site = 'Lat; {} degrees Lon: {} degrees.'.format(latitude, longitude)
+        print('First type latitude coordinate, hit Enter, then longitude coordinate and Enter again.')
+        print('Latitude valid range: [-81.3282, 81.3283] \n'
+              'Longitude valid range: [-156.2995, 6.2995]')
+        print('\n' 'Latitude:')
+        latitude = input()
+        while float(latitude) < -81.3281 or float(latitude) > 81.3283:
+            print('Invalid latitude range. Enter a value between -81.3282 and 81.3283')
+            print('Latitude:')
+            latitude = input()
+
+        print('\n' 'Longitude:')
+        longitude = input()
+        while float(longitude) < -156.2995 or float(longitude) > 6.2995:
+            print('Invalid longitude range. Enter a value between -156.2995 and 6.2995')
+            print('Longitude:')
+            longitude = input()
     lat = rad*latitude
     lon = rad*longitude
     lambda_0 = rad*lon_origin
