@@ -8,4 +8,4 @@ Precipitable water vapour program
 ``matplotlib`` `\citep{hunter}`, ``AstroPy``
 (`\citet{astropy:2013}`, `\citet{astropy:2018}`),
 ``astroplan`` `\citep{astroplan2018}`, ``requests`` and
-``bs4`` `\citep{richardson2007beautiful}`. 
+``bs4`` `\citep{richardson2007beautiful}`.
