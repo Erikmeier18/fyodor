@@ -1,5 +1,7 @@
-Precipitable Water Vapour calculation ousing GOES-R on Python
+Precipitable Water Vapour calculation using GOES-R on Python
 -------------------------------------------------------------
+
+fyodor is a program that computes precipitable water vapour using temperature and relative humidity dara from the GOES satellite across the american continent. To make it work, one has to download the files at https://www.avl.class.noaa.gov/saa/products/search?datatype_family=GRABIPRD . The data products are called Legacy Vertical Temperature Profile and Legacy Vertical Moisture Profile. You can either use data gathered by GOES-16 or GOES-16 and cover the Full Disk region.  
 
 License
 -------
