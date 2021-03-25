@@ -93,7 +93,10 @@ def download_nc(url, directory, date, n_threads=5):
         subs = '{}'.format(date[0]) + '0' + '{}'.format(date[7])
     elif len(str(date[7])) == 3:
         subs = '{}'.format(date[0]) + '{}'.format(date[7])
+
+    #Modified this so that we know how many files to download before we start.
     FileName = [i for i in Content if subs in i]
+    FileName = [path for path in FileName if not os.path.exists('./'+ path)]
 
     urls = []
     for i in range(0, len(FileName)):
