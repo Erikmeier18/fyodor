@@ -14,6 +14,7 @@ from astropy.constants import R_earth
 import requests
 from bs4 import BeautifulSoup
 import wget
+from multiprocessing.pool import ThreadPool
 
 __all__ = ['rename_nc', 'download_nc', 'tpw', 'pwv']
 
