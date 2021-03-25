@@ -51,8 +51,12 @@ def create_folder(directory):
     except OSError:
         print("Error: Creating directory." + directory) 
         
+def download_file_wget(url):
+    local_filename = url.split('/')[-1]
+    wget.download(url)
+    return url
 
-def download_nc(url, directory, date):
+def download_nc(url, directory, date, n_threads=5):
     """
     Download .nc files from the NOAA webpage after manually requesting the dataset and store them in a new folder 
     
@@ -64,6 +68,7 @@ def download_nc(url, directory, date):
         Path where a folder with the files should be created
     date: str, Format dd mm yyyy
         Day when the measurement took place
+    n_threads: int, number of threads to use to download files
     """
     
     any_day = str(date)                         
@@ -82,20 +87,29 @@ def download_nc(url, directory, date):
         Contentt = TableContent[i]['href'].split('/')[-1]
         Content.append(Contentt)
 
-    if len(str(date[7]))<3:
-        subs = '{}'.format(date[0]) +'0' + '{}'.format(date[7])
-    elif len(str(date[7]))==3:
-        subs = '{}'.format(date[0]) + '{}'.format(date[7]) 
+    if len(str(date[7])) == 1:
+        subs = '{}'.format(date[0]) + '00' + '{}'.format(date[7])
+    elif len(str(date[7])) == 2:
+        subs = '{}'.format(date[0]) + '0' + '{}'.format(date[7])
+    elif len(str(date[7])) == 3:
+        subs = '{}'.format(date[0]) + '{}'.format(date[7])
     FileName = [i for i in Content if subs in i]
 
     urls = []
     for i in range(0, len(FileName)):
         urlstemp = url + "/" + FileName[i] 
         urls.append(urlstemp)
-    
-    for i in range(0, len(urls)):
-        if not os.path.exists('./' + FileName[i]):    
-            wget.download(urls[i])
+
+    print('There are %s files to download' % len(urls))
+
+    for ii in range(0, len(urls), n_threads):
+        slice_item = slice(ii, ii + n_threads, 1)
+
+        files = ThreadPool(len(urls[slice_item])).imap_unordered(download_file_wget, urls[slice_item])
+        # Need to do this print so that it waits before starting the next batch.
+        for f in files:
+            print('%s complete' % f)
+
     print("All files downloaded!")
     
 
